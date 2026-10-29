@@ -24,7 +24,13 @@ var targets: [Target] = [
     ),
     .target(name: "AetherRules", dependencies: ["AetherFoundation"]),
     .target(name: "AetherDNS", dependencies: ["AetherFoundation"]),
-    .target(name: "AetherOutbound", dependencies: ["AetherFoundation", "CBlake3"]),
+    .target(
+        name: "AetherOutbound",
+        dependencies: [
+            "AetherFoundation", "CBlake3", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"),
+        ]
+    ),
     .target(name: "AetherCertificates", dependencies: ["AetherFoundation"]),
     .target(name: "AetherScriptCore", dependencies: ["AetherFoundation"]),
     .target(
@@ -35,14 +41,23 @@ var targets: [Target] = [
     .target(name: "AetherStore", dependencies: ["AetherFoundation"]),
     .target(
         name: "AetherEngine",
-        dependencies: ["AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore"]
+        dependencies: [
+            "AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore",
+            .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOPosix", package: "swift-nio"),
+        ]
     ),
     .executableTarget(name: "aether-cli", dependencies: ["AetherEngine"]),
     // 基准（docs/13 §5.1）：swift run -c release aether-bench
     .executableTarget(name: "aether-bench", dependencies: ["AetherEngine"]),
 
     // 测试数据与测试工具，只供测试 target 依赖。
-    .target(name: "AetherTestSupport"),
+    .target(
+        name: "AetherTestSupport",
+        dependencies: [
+            .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+        ]
+    ),
     .testTarget(name: "CBlake3Tests", dependencies: ["CBlake3", "AetherTestSupport"]),
 
     .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation", "AetherTestSupport"]),
@@ -55,7 +70,14 @@ var targets: [Target] = [
     .testTarget(name: "AetherHTTPTests", dependencies: ["AetherHTTP"]),
     .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC", "AetherTestSupport"]),
     .testTarget(name: "AetherStoreTests", dependencies: ["AetherStore"]),
-    .testTarget(name: "AetherEngineTests", dependencies: ["AetherEngine", "AetherTestSupport"]),
+    .testTarget(
+        name: "AetherEngineTests",
+        dependencies: [
+            "AetherEngine", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOEmbedded", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+        ]
+    ),
 ]
 
 var products: [Product] = [
@@ -107,6 +129,7 @@ var products: [Product] = [
 let dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2"),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
+    .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
 ]
 
 let package = Package(

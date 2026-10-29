@@ -420,7 +420,7 @@ public struct RequestRecord: Codable, Sendable, Identifiable {
 | 请求记录 | 环形缓冲 500 |
 | 并发测速 | 8 |
 
-背压：胶水 Handler 在对端 Channel 不可写时关闭本端 `autoRead`，可写后恢复。任何队列都必须有上限；溢出时的策略（丢弃、拒绝、关闭）写在对应代码的文档注释中。
+背压：胶水 Handler 在对端 Channel 不可写时暂缓本端的 `read()`（不缓冲数据），可写后补发。所有数据面 Channel 每次可读事件只读一次（`maxMessagesPerRead = 1`，单次读取 ≤ 64 KiB，`AetherOutbound` 的 `ChannelTuning`），所以每个流每个方向在用户态最多缓冲「高水位 64 KiB + 一次读取 64 KiB」。双向空闲超时由入站 Channel 上的一个 Handler 计时（上行是它的读、下行是它的写），时间取自 `EventLoop.now`，测试可用 `EmbeddedEventLoop` 推进。任何队列都必须有上限；溢出时的策略（丢弃、拒绝、关闭）写在对应代码的文档注释中。
 
 超过上限的新流以 `NET-040` 拒绝；内存压力 critical 期间以 `NET-041` 拒绝（[02 §6](02-architecture.md#6-内存预算)）。
 

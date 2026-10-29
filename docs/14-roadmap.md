@@ -84,7 +84,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
-| [ ] | M2-01 | NIO 基础：EventLoopGroup 管理、胶水 Handler（背压、半关闭、计数）、`FlowManager`、超时 | 06 §6.1、§13 | 慢速消费者下内存不增长的测试 |
+| [x] | M2-01 | NIO 基础：EventLoopGroup 管理、胶水 Handler（背压、半关闭、计数）、`FlowManager`、超时 | 06 §6.1、§13 | 慢速消费者下内存不增长的测试 |
 | [ ] | M2-02 | DNS：报文编解码、Fake IP 池与持久化、`HostTable`、缓存、UDP 与 system 上游、应答与解析流程 | 07 §1–§5 | 07 §10 中 M2 相关测试 |
 | [ ] | M2-03 | 内部 SOCKS5 入站（认证、CONNECT、UDP ASSOCIATE） | 06 §5.1 | 集成测试 |
 | [ ] | M2-04 | HTTP 代理入站（CONNECT、绝对形式请求转发） | 06 §5.2 | 集成测试 |

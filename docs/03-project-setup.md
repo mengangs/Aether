@@ -206,7 +206,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 
 | 包 | 许可证 | 使用模块 | 用途 | 版本 |
 | --- | --- | --- | --- | --- |
-| apple/swift-nio | Apache-2.0 | Engine、Outbound、DNS、HTTP | 事件循环、Channel、HTTP/1、WebSocket | |
+| apple/swift-nio | Apache-2.0 | Engine、Outbound、DNS、HTTP；AetherTestSupport（回环测试服务） | 事件循环、Channel、HTTP/1、WebSocket | 2.104.0 |
 | apple/swift-nio-ssl | Apache-2.0 | Outbound、HTTP | TLS 客户端与服务端 | |
 | apple/swift-nio-http2 | Apache-2.0 | HTTP | HTTP/2 MitM（M7）、DoH over h2 | |
 | apple/swift-nio-extras | Apache-2.0 | HTTP | HTTP 压缩等辅助 Handler | |
@@ -214,8 +214,9 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | apple/swift-certificates | Apache-2.0 | Certificates | X.509 生成与签发（MitM） | |
 | apple/swift-asn1 | Apache-2.0 | Certificates | swift-crypto、swift-certificates 的依赖 | 1.7.3（由 swift-crypto 引入） |
 | apple/swift-log | Apache-2.0 | 全部 | 日志门面 | 1.16.2 |
-| apple/swift-collections | Apache-2.0 | 全部 | `Deque`、`OrderedDictionary` | |
-| apple/swift-atomics | Apache-2.0 | Engine | 原子引用、计数器 | |
+| apple/swift-collections | Apache-2.0 | 全部 | `Deque`、`OrderedDictionary` | 1.7.5（由 swift-nio 引入） |
+| apple/swift-atomics | Apache-2.0 | Engine | 原子引用、计数器 | 1.3.1（由 swift-nio 引入） |
+| apple/swift-system | Apache-2.0 | —（swift-nio 的依赖） | 系统调用封装 | 1.8.1（由 swift-nio 引入） |
 | jpsim/Yams | MIT | Profile | 解析 YAML 格式的节点订阅 | |
 | groue/GRDB.swift | MIT | Store | SQLite 访问 | |
 | simonbs/Runestone | MIT | App（M4） | 配置文本编辑器（语法高亮、行号） | |

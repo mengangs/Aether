@@ -68,7 +68,7 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 | `AetherKeychain` | Apple | Security、`AetherIPC` | Keychain 访问：启动时探测访问组的 Team ID 前缀（03 §8.4）；M5 起存取 MitM CA 私钥；App 与隧道共用 |
 | `AetherTunnelSupport` | Apple | NetworkExtension、CHevSocks5Tunnel | 隧道网络设置构建、utun 描述符获取、hev 桥接、网络路径监控、Darwin 通知发送 |
 | `aether-cli` | 全部（可执行） | `AetherEngine` 等 | 开发调试命令行：校验配置、规则测试、在本机以 SOCKS5/HTTP 入站运行引擎 |
-| `AetherTestSupport` | 全部（仅测试） | — | 测试数据访问（`Fixtures`，定位 `Tests/Fixtures/`）、十六进制等测试工具；任何产品模块都不得依赖它 |
+| `AetherTestSupport` | 全部（仅测试） | swift-nio（回环测试服务） | 测试数据访问（`Fixtures`，定位 `Tests/Fixtures/`）、十六进制等测试工具；任何产品模块都不得依赖它 |
 
 C 依赖：
 
