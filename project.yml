@@ -33,6 +33,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Aether
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: zh-Hans
         UILaunchScreen: {}
         UIApplicationSceneManifest:
@@ -82,6 +84,8 @@ targets:
       path: Tunnel/Info.plist
       properties:
         CFBundleDisplayName: Aether Tunnel
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         AetherBundleIdentifierPrefix: $(AETHER_BUNDLE_ID_PREFIX)
         AetherAppGroupIdentifier: $(AETHER_APP_GROUP)
         AetherKeychainAccessGroup: $(AETHER_KEYCHAIN_GROUP)

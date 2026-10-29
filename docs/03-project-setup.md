@@ -192,6 +192,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 - `Aether`（application）：源码 `App/Sources`、`App/Resources`；`PRODUCT_BUNDLE_IDENTIFIER = $(AETHER_BUNDLE_ID_PREFIX)`；依赖 `AetherTunnel` target 与 `AetherKit` 的 `AetherProfile`、`AetherRules`、`AetherIPC`、`AetherStore`、`AetherControl`（M5 起加 `AetherCertificates`，M6 起加 `AetherScript`，见 02 §3.2）。
 - `AetherTunnel`（app-extension，`com.apple.networkextension.packet-tunnel`，主类 `$(PRODUCT_MODULE_NAME).PacketTunnelProvider`）：`PRODUCT_BUNDLE_IDENTIFIER = $(AETHER_TUNNEL_BUNDLE_ID)`；依赖 `AetherEngine`、`AetherTunnelSupport`、`AetherScript`、`AetherIPC`、`AetherStore`。
 - 两个 target 的 Info.plist 与 entitlements 由 `info.properties` / `entitlements.properties` 生成，内容见 §3.2–§3.4；其中的标识符全部是 `$(AETHER_*)` 变量。
+- 每个 target 的 `info.properties` 都必须写 `CFBundleShortVersionString: $(MARKETING_VERSION)` 与 `CFBundleVersion: $(CURRENT_PROJECT_VERSION)`：XcodeGen 生成 Info.plist 时默认填入字面量 `1.0` / `1`，不会引用构建设置。
 - scheme `Aether` 构建 App 与 Tunnel；Run 用 Debug，Archive 用 Release。
 - `Scripts/check-architecture.swift` 解析 `project.yml` 中 App 与小组件的 `products`，拒绝直接或间接依赖引擎相关模块。
 
