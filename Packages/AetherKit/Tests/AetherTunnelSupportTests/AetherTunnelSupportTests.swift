@@ -8,5 +8,5 @@ import Testing
 }
 
 @Test func hevIsLinked() {
-    #expect(HevBridge.entryPoints.count == 3)
+    #expect(HevBridge.linkedEntryPointCount() == 3)
 }

@@ -31,10 +31,10 @@ jobs:
           Packages/AetherKit/Sources Packages/AetherKit/Tests Packages/AetherKit/Package.swift Scripts
 
       - name: Architecture
-        run: swift Scripts/check-architecture.swift .
+        run: Scripts/ci-run.sh swift Scripts/check-architecture.swift .
 
       - name: Build
-        run: swift build --package-path Packages/AetherKit
+        run: Scripts/ci-run.sh swift build --package-path Packages/AetherKit
 
       - name: Test
-        run: swift test --package-path Packages/AetherKit --parallel
+        run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --parallel

@@ -44,13 +44,13 @@ jobs:
           key: hev-${{ steps.hev.outputs.rev }}-${{ hashFiles('Scripts/build-hev.sh') }}-${{ env.XCODE_APP }}
 
       - name: Build hev xcframework
-        run: ./Scripts/build-hev.sh
+        run: Scripts/ci-run.sh ./Scripts/build-hev.sh
 
       - name: Architecture
-        run: swift Scripts/check-architecture.swift .
+        run: Scripts/ci-run.sh swift Scripts/check-architecture.swift .
 
       - name: Package tests (macOS host)
-        run: swift test --package-path Packages/AetherKit --parallel
+        run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --parallel
 
       - name: Install XcodeGen
         run: brew install xcodegen
