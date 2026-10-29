@@ -1,0 +1,40 @@
+# 跨平台核心库：格式、架构约束、构建与测试（docs/03 §7）。
+name: core
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux · Swift 6.4
+    runs-on: ubuntu-latest
+    container: swift:6.4-noble
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Format
+        run: >
+          swift format lint --strict --recursive
+          Packages/AetherKit/Sources Packages/AetherKit/Tests Packages/AetherKit/Package.swift Scripts
+
+      - name: Architecture
+        run: swift Scripts/check-architecture.swift .
+
+      - name: Build
+        run: swift build --package-path Packages/AetherKit
+
+      - name: Test
+        run: swift test --package-path Packages/AetherKit --parallel

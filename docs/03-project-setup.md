@@ -405,6 +405,17 @@ jobs:
 
 Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runner 镜像变更导致构建失败时，优先固定 Xcode 版本（`sudo xcode-select -s /Applications/Xcode_<版本>.app`），并在本节记录。
 
+当前固定的版本（2026-10，M0-05 起）：
+
+| 项 | 值 | 说明 |
+| --- | --- | --- |
+| macOS runner | `xcode-27`（arm64，macOS 27） | GitHub 的 Xcode 27 专用镜像（public preview）；不可用时退回 `macos-26`（默认 Xcode 26.6） |
+| Xcode | `/Applications/Xcode_27.1.app`（镜像默认版本） | 在 `ios.yml` / `release.yml` 的 `XCODE_APP` 中固定 |
+| Linux 容器 | `swift:6.4-noble`（Docker Hub 官方镜像） | 本地可用同名镜像复现：`docker run --rm -v "$PWD":/src -w /src/Packages/AetherKit swift:6.4-noble swift test` |
+| Actions | `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7` | |
+
+`ios.yml` 的步骤随 M0 任务逐步补全：M0-05 只在 macOS 主机上运行架构检查与 `swift test`；M0-03 加入 hev 缓存与 `build-hev.sh`；M0-04 加入 XcodeGen 与 `xcodebuild build`。
+
 项目直接在 `main` 上开发，不使用 PR。每次推送 `main` 后 `core.yml` 与 `ios.yml` 必须全部通过；任一失败时优先修复，修到通过后再开始下一个任务。
 
 ## 8. 版本号与发布

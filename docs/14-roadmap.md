@@ -24,10 +24,10 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
 | [x] | M0-01 | 仓库初始化：目录结构、`.gitignore`、`.swift-format`、`CHANGELOG.md`、文档与示例就位 | 03 §1、§9 | 结构与 03 §1 一致 |
-| [~] | M0-02 | `AetherKit` 包骨架：全部模块的空壳与占位测试、平台条件声明 | 02 §3、03 §5.4 | Linux 与 macOS 上 `swift build` / `swift test` 通过 |
+| [x] | M0-02 | `AetherKit` 包骨架：全部模块的空壳与占位测试、平台条件声明 | 02 §3、03 §5.4 | Linux 与 macOS 上 `swift build` / `swift test` 通过 |
 | [ ] | M0-03 | Vendored C 库：hev submodule、`build-hev.sh`、模块映射；BLAKE3 源码与 `CBlake3` | 03 §6 | xcframework 可生成；BLAKE3 官方测试向量通过 |
 | [ ] | M0-04 | XcodeGen 工程：`project.yml`、xcconfig、Info.plist、entitlements、隐私清单；App 与 Tunnel target；`bootstrap.sh` | 03 §3、§4 | `xcodebuild build` 成功 |
-| [ ] | M0-05 | CI：`core.yml`、`ios.yml` | 03 §7 | 两个工作流在推送 `main` 时运行并通过 |
+| [x] | M0-05 | CI：`core.yml`、`ios.yml` | 03 §7 | 两个工作流在推送 `main` 时运行并通过 |
 | [ ] | M0-06 | `AppEnvironment`；日志基础设施（os.Logger 后端 + 滚动文件） | 03 §3.2、02 §8.2 | 缺少 Info.plist 键时给出明确错误；日志文件滚动测试 |
 | [ ] | M0-07 | 最小闭环：`AetherControl` 中的 `TunnelController`（安装、启动、停止、状态）与 `TunnelClient`，App 首页开关；隧道应用只包含 `198.18.0.0/15` 路由、不改 DNS 的网络设置后进入 running；IPC `getStatus` 往返 | 10 §2、§4 | 真机 V01；开启空隧道时正常上网不受影响 |
 | [ ] | M0-08 | 发布工作流 `release.yml`：`v*` tag 与手动触发（`workflow_dispatch`）；未签名 ipa、entitlements 与标识符清单；标识符可由仓库变量覆盖 | 03 §8.3–§8.4 | 手动触发产出结构正确的 ipa 与附带文件 |
