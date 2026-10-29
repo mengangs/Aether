@@ -32,13 +32,13 @@ Aether 是一款基于规则的 iOS 网络代理客户端。它的名字来自�
 
 ## 状态
 
-开发中。当前版本 **v0.1.0（M0 工程骨架）**：工程可构建；App 能安装 VPN 配置，并启动一个只接管 `198.18.0.0/15`、不改 DNS 的空隧道，尚不处理任何流量。进度与下一步见 [docs/14-roadmap.md](docs/14-roadmap.md)，变更见 [CHANGELOG.md](CHANGELOG.md)。
+开发中。当前版本 **v0.2.0（M1 配置内核）**：配置解析、校验、模块叠加、编辑与规则引擎已完成并可用 `aether-cli` 在电脑上测试；App 仍只有空隧道，尚不处理任何流量（M2 起接管流量）。进度与下一步见 [docs/14-roadmap.md](docs/14-roadmap.md)，变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 | 功能 | 状态 |
 | --- | --- |
 | 工程骨架、CI、未签名 ipa 发布 | ✅ v0.1.0 |
 | VPN 配置安装与空隧道、IPC 状态查询 | ✅ v0.1.0 |
-| 配置解析与规则引擎 | 🚧 M1（v0.2） |
+| 配置解析、校验、模块与规则引擎（`aether-cli`） | ✅ v0.2.0 |
 | 全流量接管、DIRECT / HTTP / SOCKS5、规则分流 | 🚧 M2（v0.3） |
 | Shadowsocks、Trojan、VMess、VLESS，自动策略组，订阅 | 🚧 M3（v0.4） |
 | 编辑器、小组件、快捷指令 | 🚧 M4（v0.5） |
