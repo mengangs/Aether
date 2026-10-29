@@ -38,6 +38,8 @@ var targets: [Target] = [
         dependencies: ["AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore"]
     ),
     .executableTarget(name: "aether-cli", dependencies: ["AetherEngine"]),
+    // 基准（docs/13 §5.1）：swift run -c release aether-bench
+    .executableTarget(name: "aether-bench", dependencies: ["AetherEngine"]),
 
     // 测试数据与测试工具，只供测试 target 依赖。
     .target(name: "AetherTestSupport"),

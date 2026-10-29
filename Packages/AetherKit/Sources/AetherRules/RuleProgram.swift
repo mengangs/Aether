@@ -41,9 +41,34 @@ public enum RuleStep: Sendable, Equatable {
 /// 编译后的规则程序（docs/05 §1、§4）。不可变；`evaluate` 同步、无副作用，可在 EventLoop 上直接调用。
 public struct RuleProgram: Sendable {
     let rules: [CompiledRule]
+    /// 全部顶层域名类规则的统一索引：一次查找得到命中的最小序号。
+    let domainIndex: DomainIndex
+    /// 非域名类规则的块（IP 块与单条），按序号顺序。
     let blocks: [Block]
+    /// 热路径用的平行数组（只含平凡类型，遍历时没有引用计数开销）：块的序号范围、块是否为 IP 块。
+    let blockRanges: [Range<Int>]
+    let blockIsIP: [Bool]
+    /// 每条规则是否为可请求解析的 IP 规则（IP 类且不带 no-resolve）、是否为域名类、是否依赖 URL / User-Agent。
+    let resolvableIP: [Bool]
+    let isDomain: [Bool]
+    let dependsOnDetails: [Bool]
     /// FINAL 的序号（编译时保证存在）。
     let finalIndex: Int
+
+    init(rules: [CompiledRule], domainIndex: DomainIndex, blocks: [Block], finalIndex: Int) {
+        self.rules = rules
+        self.domainIndex = domainIndex
+        self.blocks = blocks
+        self.finalIndex = finalIndex
+        blockRanges = blocks.map(\.range)
+        blockIsIP = blocks.map {
+            if case .ip = $0.kind { return true }
+            return false
+        }
+        resolvableIP = rules.map { $0.category == .ip && !$0.options.noResolve }
+        isDomain = rules.map { $0.category == .domain }
+        dependsOnDetails = rules.map(\.dependsOnRequestDetails)
+    }
 
     public var ruleCount: Int { rules.count }
 
@@ -64,7 +89,9 @@ public struct RuleProgram: Sendable {
         }
         let compiler = RuleCompiler(resources: resources, platform: platform)
         let compiled = specs.enumerated().map { compiler.compile($0.element, index: $0.offset) }
-        return RuleProgram(rules: compiled, blocks: Block.make(compiled), finalIndex: compiled.count - 1)
+        return RuleProgram(
+            rules: compiled, domainIndex: DomainIndex(compiled.filter { $0.category == .domain }[...]),
+            blocks: Block.make(compiled), finalIndex: compiled.count - 1)
     }
 
     // MARK: - 判定
@@ -87,28 +114,22 @@ public struct RuleProgram: Sendable {
         }
         var touched = false
         let canResolve = context.host != nil && context.destinationIP == nil && !context.resolutionFailed
-        for block in blocks where block.range.upperBound > cursor.index {
-            let start = max(block.range.lowerBound, cursor.index)
-            switch block.kind {
-            case .domain(let index):
-                // 域名块不会是续算的起点（续算只发生在需要 IP 的规则上）；从中间开始时退回逐条判定。
-                if start == block.range.lowerBound, let host = context.host {
-                    if let hit = index.match(host) {
-                        return Detailed(
-                            step: .decided(match(hit, usedResolution: usedResolution)), touchedRequestDetails: touched)
-                    }
-                    continue
-                }
-                if let result = linear(
-                    start..<block.range.upperBound, context, canResolve: canResolve, touched: &touched,
-                    usedResolution: usedResolution)
-                {
-                    return Detailed(step: result, touchedRequestDetails: touched)
-                }
-            case .ip(let index):
+        // 域名类规则：统一索引给出命中的最小序号 D。只需按顺序判定 D 之前的非域名类规则。
+        // 续算位置总在需要 IP 的规则上，此前已确认 D 在它之后，因此 D ≥ cursor。
+        var domainHit = Int.max
+        if let host = context.host, let hit = domainIndex.match(host), hit >= cursor.index {
+            domainHit = hit
+        }
+        for blockIndex in blockRanges.indices {
+            let range = blockRanges[blockIndex]
+            if range.upperBound <= cursor.index { continue }
+            if range.lowerBound >= domainHit { break }
+            let start = max(range.lowerBound, cursor.index)
+            let end = min(range.upperBound, domainHit)
+            if blockIsIP[blockIndex] {
                 if let ip = context.destinationIP {
-                    if start == block.range.lowerBound {
-                        if let hit = index.match(ip) {
+                    if start == range.lowerBound, case .ip(let index) = blocks[blockIndex].kind {
+                        if let hit = index.match(ip), hit < domainHit {
                             return Detailed(
                                 step: .decided(match(hit, usedResolution: usedResolution)),
                                 touchedRequestDetails: touched)
@@ -116,28 +137,30 @@ public struct RuleProgram: Sendable {
                         continue
                     }
                     if let result = linear(
-                        start..<block.range.upperBound, context, canResolve: canResolve, touched: &touched,
-                        usedResolution: usedResolution)
+                        start..<end, context, canResolve: canResolve, touched: &touched, usedResolution: usedResolution)
                     {
                         return Detailed(step: result, touchedRequestDetails: touched)
                     }
-                } else if canResolve, let host = context.host,
-                    let first = (start..<block.range.upperBound).first(where: { !rules[$0].options.noResolve })
-                {
-                    return Detailed(
-                        step: .needsResolution(host, resume: RuleCursor(index: first, afterResolution: true)),
-                        touchedRequestDetails: touched)
+                } else if canResolve, let host = context.host {
+                    var first = start
+                    while first < end, !resolvableIP[first] { first += 1 }
+                    if first < end {
+                        return Detailed(
+                            step: .needsResolution(host, resume: RuleCursor(index: first, afterResolution: true)),
+                            touchedRequestDetails: touched)
+                    }
                 }
-            case .single:
-                if let result = linear(
-                    start..<block.range.upperBound, context, canResolve: canResolve, touched: &touched,
-                    usedResolution: usedResolution)
-                {
-                    return Detailed(step: result, touchedRequestDetails: touched)
-                }
+            } else if let result = linear(
+                start..<end, context, canResolve: canResolve, touched: &touched, usedResolution: usedResolution)
+            {
+                return Detailed(step: result, touchedRequestDetails: touched)
             }
         }
-        // FINAL 总是命中，循环中一定已返回；这里只为类型完整。
+        if domainHit != Int.max {
+            return Detailed(
+                step: .decided(match(domainHit, usedResolution: usedResolution)), touchedRequestDetails: touched)
+        }
+        // FINAL 是单条规则，总会在循环中命中；这里只为类型完整。
         return Detailed(
             step: .decided(match(finalIndex, usedResolution: usedResolution)), touchedRequestDetails: touched)
     }
@@ -146,21 +169,27 @@ public struct RuleProgram: Sendable {
     private func linear(
         _ range: Range<Int>, _ context: RouteContext, canResolve: Bool, touched: inout Bool, usedResolution: Bool
     ) -> RuleStep? {
-        for index in range {
-            let rule = rules[index]
-            if rule.dependsOnRequestDetails { touched = true }
-            switch rule.evaluate(context) {
-            case .match:
-                return .decided(match(index, usedResolution: usedResolution))
-            case .needsIP:
-                if canResolve, let host = context.host {
-                    return .needsResolution(host, resume: RuleCursor(index: index, afterResolution: true))
+        // 通过缓冲区借用元素，避免逐条复制 CompiledRule（其中有多个引用计数字段）。
+        var found: (index: Int, outcome: RuleOutcome)?
+        rules.withUnsafeBufferPointer { buffer in
+            for index in range where !isDomain[index] {
+                if dependsOnDetails[index] { touched = true }
+                let outcome = buffer[index].evaluate(context, canResolve: canResolve)
+                switch outcome {
+                case .match, .needsIP:
+                    found = (index, outcome)
+                    return
+                case .noMatch, .undecidable:
+                    continue
                 }
-            case .noMatch, .undecidable:
-                continue
             }
         }
-        return nil
+        guard let found else { return nil }
+        if found.outcome == .needsIP {
+            guard canResolve, let host = context.host else { return nil }
+            return .needsResolution(host, resume: RuleCursor(index: found.index, afterResolution: true))
+        }
+        return .decided(match(found.index, usedResolution: usedResolution))
     }
 
     private func match(_ index: Int, usedResolution: Bool) -> RuleMatch {
@@ -251,7 +280,7 @@ public struct RuleProgram: Sendable {
 
 struct Block: Sendable {
     enum Kind: Sendable {
-        case domain(DomainIndex)
+        case domain
         case ip(IPIndex)
         case single
     }
@@ -259,35 +288,41 @@ struct Block: Sendable {
     let range: Range<Int>
     let kind: Kind
 
+    /// 在去掉域名类规则后的序列上，把连续的同类规则合并为块（域名类规则由程序级索引处理，不打断块）。
+    /// 块的范围是原序号范围，其中可能夹有域名类规则；判定时跳过它们。
     static func make(_ rules: [CompiledRule]) -> [Block] {
         var blocks: [Block] = []
-        var start = 0
-        while start < rules.count {
-            let category = rules[start].category
-            var end = start + 1
-            if category != .single {
-                while end < rules.count, rules[end].category == category {
-                    end += 1
-                }
-            }
-            let slice = rules[start..<end]
+        var current: [Int] = []
+        var category: CompiledRule.Category?
+        func flush() {
+            guard let first = current.first, let last = current.last, let category else { return }
+            let members = current.map { rules[$0] }
             switch category {
-            case .domain: blocks.append(Block(range: start..<end, kind: .domain(DomainIndex(slice))))
-            case .ip: blocks.append(Block(range: start..<end, kind: .ip(IPIndex(slice))))
-            case .single: blocks.append(Block(range: start..<end, kind: .single))
+            case .ip: blocks.append(Block(range: first..<(last + 1), kind: .ip(IPIndex(members[...]))))
+            default: blocks.append(Block(range: first..<(last + 1), kind: .single))
             }
-            start = end
+            current = []
         }
+        for rule in rules where rule.category != .domain {
+            if rule.category != category {
+                flush()
+                category = rule.category
+            }
+            current.append(rule.index)
+        }
+        flush()
         return blocks
     }
 }
 
-/// 域名块的索引：精确用哈希表，后缀用反转域名表，关键字用线性或 Aho-Corasick，通配线性。
+/// 域名类规则的索引：精确用哈希表，后缀用反转域名表，关键字用线性或 Aho-Corasick，通配线性。
+/// 规则程序对全部顶层域名规则建一个索引；规则集各建一个。
 struct DomainIndex: Sendable {
     let exact: [String: Int]
     let suffix: ReversedDomainTable
     let keywords: KeywordMatcher
     let wildcards: [(pattern: String, index: Int)]
+    private let compiledWildcards: [(pattern: CompiledWildcard, index: Int)]
 
     init(
         exact: [String: Int], suffix: ReversedDomainTable, keywords: KeywordMatcher,
@@ -297,6 +332,7 @@ struct DomainIndex: Sendable {
         self.suffix = suffix
         self.keywords = keywords
         self.wildcards = wildcards
+        compiledWildcards = wildcards.map { (CompiledWildcard($0.pattern), $0.index) }
     }
 
     init(_ rules: ArraySlice<CompiledRule>) {
@@ -317,6 +353,7 @@ struct DomainIndex: Sendable {
         self.suffix = suffix.build()
         self.keywords = KeywordMatcher(keywords)
         self.wildcards = wildcards
+        compiledWildcards = wildcards.map { (CompiledWildcard($0.0), $0.1) }
     }
 
     /// 命中规则中的最小序号。
@@ -324,9 +361,15 @@ struct DomainIndex: Sendable {
         var best = exact[host.value]
         if let hit = suffix.match(host.value) { best = min(best ?? .max, hit) }
         if let hit = keywords.match(host.value) { best = min(best ?? .max, hit) }
-        for (pattern, index) in wildcards where index < (best ?? .max) && Wildcard.matches(pattern, host.value) {
-            best = index
-            break
+        if !compiledWildcards.isEmpty {
+            let bytes = Array(host.value.utf8)
+            for (pattern, index) in compiledWildcards {
+                if index >= (best ?? .max) { break }
+                if pattern.matches(bytes) {
+                    best = index
+                    break
+                }
+            }
         }
         return best
     }

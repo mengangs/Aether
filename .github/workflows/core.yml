@@ -45,3 +45,33 @@ jobs:
           swift run --package-path Packages/AetherKit aether-cli match examples/full.conf \
             --url https://api.example.com/v1 --resolve api.example.com=198.51.100.1
           swift run --package-path Packages/AetherKit aether-cli render examples/full.conf --redact > /dev/null
+
+  bench:
+    name: Benchmarks · Linux
+    runs-on: ubuntu-latest
+    container: swift:6.4-noble
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore baseline (last main run)
+        uses: actions/cache/restore@v6
+        with:
+          path: bench-baseline.json
+          key: bench-baseline-${{ github.sha }}
+          restore-keys: bench-baseline-
+
+      - name: Run benchmarks (release)
+        run: |
+          baseline=""
+          if [ -f bench-baseline.json ]; then baseline="--baseline bench-baseline.json"; fi
+          swift build -c release --package-path Packages/AetherKit --product aether-bench
+          swift run -c release --package-path Packages/AetherKit aether-bench $baseline --output bench-results.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          cp bench-results.json bench-baseline.json
+
+      - name: Save baseline
+        uses: actions/cache/save@v6
+        with:
+          path: bench-baseline.json
+          key: bench-baseline-${{ github.sha }}

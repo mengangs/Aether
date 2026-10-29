@@ -77,6 +77,8 @@
 - AEAD 分块加解密吞吐（各方法）；
 - 配置解析（1 万行）。
 
+实现为可执行目标 `aether-bench`（`swift run -c release aether-bench [--baseline 上次.json] [--output 本次.json] [--quick]`），数据由固定种子生成，不读网络。`core.yml` 的 `bench` 作业以 Release 构建运行，把 Markdown 表格写入 CI 摘要，并与 actions 缓存中上一次运行的结果比较；退化超过 20% 时输出警告（不使 CI 失败，GitHub runner 的性能本身有波动）。DNS 报文编解码与 AEAD 吞吐在实现相应模块（M2、M3）时加入。本地运行前应清理 Release 构建目录（`rm -rf .build/*/release`）：增量 Release 构建在跨模块结构布局变化后可能得到损坏的二进制。
+
 ### 5.2 真机测量
 
 每个里程碑结束前在真机上记录（Release 构建）：

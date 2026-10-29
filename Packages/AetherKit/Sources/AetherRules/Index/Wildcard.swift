@@ -40,3 +40,40 @@ public enum Wildcard {
         (0x41...0x5A).contains(value) ? value + 0x20 : value
     }
 }
+
+/// 预编译的主机名通配模式：模式与主机名都是规范化后的 ASCII 小写（A-label），按字节比较，匹配时不分配内存。
+struct CompiledWildcard: Sendable {
+    let pattern: [UInt8]
+
+    init(_ pattern: String) {
+        self.pattern = Array(pattern.lowercased().utf8)
+    }
+
+    func matches(_ text: [UInt8]) -> Bool {
+        let p = pattern
+        var pi = 0
+        var ti = 0
+        var starPattern = -1
+        var starText = 0
+        while ti < text.count {
+            if pi < p.count, p[pi] == UInt8(ascii: "?") || p[pi] == text[ti] {
+                pi += 1
+                ti += 1
+            } else if pi < p.count, p[pi] == UInt8(ascii: "*") {
+                starPattern = pi
+                starText = ti
+                pi += 1
+            } else if starPattern >= 0 {
+                pi = starPattern + 1
+                starText += 1
+                ti = starText
+            } else {
+                return false
+            }
+        }
+        while pi < p.count, p[pi] == UInt8(ascii: "*") {
+            pi += 1
+        }
+        return pi == p.count
+    }
+}

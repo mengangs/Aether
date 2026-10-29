@@ -55,6 +55,18 @@ struct CompiledRule: Sendable {
     let policy: String
     let options: RuleOptions
     let matcher: Matcher
+    /// 是否依赖 URL / User-Agent（含子规则与规则集），编译时计算，影响决策缓存。
+    let dependsOnRequestDetails: Bool
+
+    init(index: Int, raw: String, source: SourceReference, policy: String, options: RuleOptions, matcher: Matcher) {
+        self.index = index
+        self.raw = raw
+        self.source = source
+        self.policy = policy
+        self.options = options
+        self.matcher = matcher
+        dependsOnRequestDetails = Self.computeDependsOnRequestDetails(matcher)
+    }
 
     var category: Category {
         switch matcher {
@@ -64,8 +76,7 @@ struct CompiledRule: Sendable {
         }
     }
 
-    /// 是否依赖 URL / User-Agent（含子规则与规则集），影响决策缓存。
-    var dependsOnRequestDetails: Bool {
+    static func computeDependsOnRequestDetails(_ matcher: Matcher) -> Bool {
         switch matcher {
         case .userAgent, .urlRegex: return true
         case .and(let children), .or(let children): return children.contains(where: \.dependsOnRequestDetails)

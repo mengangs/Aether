@@ -51,60 +51,89 @@ public struct KeywordMatcher: Sendable {
     }
 }
 
-/// 字节级 Aho-Corasick 自动机。每个状态预先计算沿失败链可达的最小输出值。
+/// 字节级 Aho-Corasick 自动机，转移以 CSR 形式紧凑存储（每个状态的出边按字节排序，连续存放）。
+/// 每个状态预先计算沿失败链可达的最小输出值。内存约为"状态数 × 12 字节 + 边数 × 5 字节"。
 struct AhoCorasick: Sendable {
-    private var transitions: [[UInt8: Int32]] = [[:]]
-    private var fail: [Int32] = [0]
-    private var output: [Int32] = [.max]
+    private var edgeStart: [Int32] = []  // 状态 i 的出边为 [edgeStart[i], edgeStart[i+1])
+    private var edgeBytes: [UInt8] = []
+    private var edgeTargets: [Int32] = []
+    private var fail: [Int32] = []
+    private var output: [Int32] = []
 
     init(_ patterns: [(pattern: [UInt8], value: Int)]) {
+        // 先用临时的字典 trie 构建，再压缩为 CSR。
+        var trie: [[UInt8: Int32]] = [[:]]
+        var out: [Int32] = [.max]
         for (pattern, value) in patterns {
             var state = 0
             for byte in pattern {
-                if let next = transitions[state][byte] {
+                if let next = trie[state][byte] {
                     state = Int(next)
                 } else {
-                    transitions.append([:])
-                    fail.append(0)
-                    output.append(.max)
-                    let next = transitions.count - 1
-                    transitions[state][byte] = Int32(next)
+                    trie.append([:])
+                    out.append(.max)
+                    let next = trie.count - 1
+                    trie[state][byte] = Int32(next)
                     state = next
                 }
             }
-            output[state] = min(output[state], Int32(clamping: value))
+            out[state] = min(out[state], Int32(clamping: value))
         }
+        edgeStart.reserveCapacity(trie.count + 1)
+        for node in trie {
+            edgeStart.append(Int32(edgeBytes.count))
+            for (byte, target) in node.sorted(by: { $0.key < $1.key }) {
+                edgeBytes.append(byte)
+                edgeTargets.append(target)
+            }
+        }
+        edgeStart.append(Int32(edgeBytes.count))
+        fail = [Int32](repeating: 0, count: trie.count)
+        output = out
         // 广度优先构建失败链。
         var queue: [Int] = []
-        for (_, next) in transitions[0] {
-            queue.append(Int(next))
+        for edge in Int(edgeStart[0])..<Int(edgeStart[1]) {
+            queue.append(Int(edgeTargets[edge]))
         }
         var head = 0
         while head < queue.count {
             let state = queue[head]
             head += 1
-            for (byte, nextValue) in transitions[state] {
-                let next = Int(nextValue)
+            for edge in Int(edgeStart[state])..<Int(edgeStart[state + 1]) {
+                let byte = edgeBytes[edge]
+                let next = Int(edgeTargets[edge])
                 queue.append(next)
                 var f = Int(fail[state])
-                while f != 0, transitions[f][byte] == nil {
+                while f != 0, transition(f, byte) == nil {
                     f = Int(fail[f])
                 }
-                let target = transitions[f][byte].map(Int.init) ?? 0
+                let target = transition(f, byte) ?? 0
                 fail[next] = Int32(target == next ? 0 : target)
                 output[next] = min(output[next], output[Int(fail[next])])
             }
         }
     }
 
+    private func transition(_ state: Int, _ byte: UInt8) -> Int? {
+        var low = Int(edgeStart[state])
+        var high = Int(edgeStart[state + 1]) - 1
+        while low <= high {
+            let mid = (low + high) / 2
+            let value = edgeBytes[mid]
+            if value == byte { return Int(edgeTargets[mid]) }
+            if value < byte { low = mid + 1 } else { high = mid - 1 }
+        }
+        return nil
+    }
+
     func minimumMatch(in bytes: some Sequence<UInt8>) -> Int? {
         var state = 0
         var best = output[0]
         for byte in bytes {
-            while state != 0, transitions[state][byte] == nil {
+            while state != 0, transition(state, byte) == nil {
                 state = Int(fail[state])
             }
-            state = transitions[state][byte].map(Int.init) ?? 0
+            state = transition(state, byte) ?? 0
             best = min(best, output[state])
         }
         return best == .max ? nil : Int(best)
