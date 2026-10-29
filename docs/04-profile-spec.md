@@ -584,6 +584,7 @@ YAML `proxies` 字段映射：
 - **策略组**：参数不适用于该组类型（如 `select` 上的 `tolerance`）为 `CFG-003`。含 `=` 的字段一定是参数（策略名不可能含 `=`）。
 - **[General]**：`fake-ip-range` 必须是不小于 /24 的 IPv4 段；`resource-update-interval` 小于 60 秒时按 60 秒处理；`[General]` 与 `[MITM]` 中的列表值用与条目相同的分词器（支持引号）。
 - **脚本**：`event-name` 只支持 `network-changed`，其它值为 `CFG-020`。
+- **语义校验**（M1-04）：节点与组名全局唯一，与内置策略名（不区分大小写）冲突也是 `CFG-010`，诊断落在后出现的条目上；引用内置策略不区分大小写，其余策略名区分大小写。`CFG-011` 覆盖组成员、`include-other-group`、规则策略、`resource-fetch-policy` 与 `underlying-proxy`。组循环（含自引用与经由 `include-other-group` 的环）每个环只报告一次 `CFG-012`，参数为环路径。FINAL 之后的规则在 `ResolvedProfile` 中被移除（`CFG-036`）；隐式追加的 `FINAL,DIRECT` 行号记为 0。
 
 有任何 `error` 级诊断的配置不得提交为运行包；`warning` 与 `info` 不阻止提交。每条诊断包含：码、级别、文件（配置或模块名）、行号、列号（可选）、参数（用于本地化消息插值）。
 
