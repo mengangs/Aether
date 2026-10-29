@@ -1,29 +1,18 @@
 import SwiftUI
 
-/// Aether App 入口。界面结构见 docs/12-ui.md；M0-07 起由 AppModel 驱动首页。
+/// Aether App 入口（docs/12）。启动时读取运行环境；失败时显示错误页，不崩溃（docs/03 §8.4）。
 @main
 struct AetherApp: App {
+    @State private var model = AppModel.live()
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
-            PlaceholderView()
+            RootView(model: model)
+                .task { await model.start() }
+                .onChange(of: scenePhase) { _, phase in
+                    model.setForeground(phase == .active)
+                }
         }
     }
-}
-
-/// M0-04 的占位界面，M0-07 替换为首页。
-struct PlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "circle.dotted")
-                .font(.system(size: 48))
-                .foregroundStyle(.tint)
-            Text("Aether")
-                .font(.largeTitle.bold())
-        }
-        .padding()
-    }
-}
-
-#Preview {
-    PlaceholderView()
 }

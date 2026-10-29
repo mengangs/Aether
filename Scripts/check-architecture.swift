@@ -27,7 +27,7 @@ let allowedGraph: [String: [String]] = [
     "AetherScript": ["AetherScriptCore"],
     "AetherControl": ["AetherIPC"],
     "AetherKeychain": ["AetherFoundation", "AetherIPC"],
-    "AetherTunnelSupport": ["AetherEngine", "CHevSocks5Tunnel"],
+    "AetherTunnelSupport": ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel"],
     "aether-cli": ["AetherEngine"],
     "CBlake3": [],
     // 测试工具：只能被测试 target 依赖（任何产品模块都不允许依赖它）。

@@ -1,5 +1,6 @@
 import Foundation
-import Logging
+// 重新导出 swift-log，使 App / 扩展只依赖 AetherKit 的产品即可使用 `Logger`。
+@_exported import Logging
 
 /// 日志基础设施（docs/02 §8.2）。统一使用 swift-log 门面：
 /// Apple 平台写入 `os.Logger`（subsystem = Bundle ID 前缀，category = 日志标签），

@@ -1,3 +1,5 @@
+import Foundation
+
 /// 稳定错误码（docs/02 §8.1）。格式为 `<命名空间>-<三位数字>`，如 `NET-002`；一经发布不得改变含义。
 ///
 /// 各模块在 `AetherErrorCode` 的扩展中定义自己的码，并同步写入对应文档的错误码表。
@@ -70,4 +72,20 @@ public protocol AetherErrorProtocol: Error, Sendable {
 
 extension AetherErrorProtocol {
     public var isRetryable: Bool { false }
+}
+
+extension AetherErrorProtocol {
+    /// 转换为可交给系统 API（如 Packet Tunnel 的 completionHandler）的 NSError：
+    /// 域 `Aether`，错误码为码中的数字部分，`userInfo["AetherErrorCode"]` 为完整错误码。
+    public var nsError: NSError {
+        let number = Int(code.rawValue.split(separator: "-").last ?? "") ?? 0
+        return NSError(
+            domain: "Aether",
+            code: number,
+            userInfo: [
+                NSLocalizedDescriptionKey: "\(code.rawValue): \(debugDetails)",
+                "AetherErrorCode": code.rawValue,
+            ]
+        )
+    }
 }

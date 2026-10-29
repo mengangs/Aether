@@ -34,21 +34,23 @@ extension AppEnvironment {
     /// 读取主 Bundle 的标识符并校正 Keychain 访问组前缀；校正或探测失败时写日志。
     /// - Throws: `AppEnvironmentError`（`IPC-020`）。
     public static func loadForCurrentProcess(logger: Logger) throws -> AppEnvironment {
-        let environment: AppEnvironment
         do {
-            environment = try AppEnvironment.fromMainBundle()
+            return try AppEnvironment.fromMainBundle().resolvingKeychainAccessGroupForCurrentProcess(logger: logger)
         } catch let error as AppEnvironmentError {
             logger.error(
                 "AppEnvironment unavailable", metadata: ["code": "\(error.code)", "details": "\(error.debugDetails)"])
             throw error
         }
+    }
+
+    /// 在本进程中探测 Keychain 访问组并校正前缀，结果写日志（docs/03 §8.4）。
+    public func resolvingKeychainAccessGroupForCurrentProcess(logger: Logger) -> AppEnvironment {
         let probed = KeychainAccessGroupProbe.probeDefaultAccessGroup(
-            service: "\(environment.bundleIdentifierPrefix).keychain-probe"
-        )
-        let (resolved, resolution) = environment.resolvingKeychainAccessGroup(probed: probed)
+            service: "\(bundleIdentifierPrefix).keychain-probe")
+        let (resolved, resolution) = resolvingKeychainAccessGroup(probed: probed)
         switch resolution {
         case .matched:
-            break
+            logger.info("Keychain access group verified", metadata: ["group": "\(resolved.keychainAccessGroup)"])
         case .corrected(let from, let to):
             logger.warning(
                 "Keychain access group prefix differs from Info.plist; using the probed prefix",
@@ -57,7 +59,7 @@ extension AppEnvironment {
         case .probeFailed:
             logger.warning(
                 "Keychain access group probe failed; keeping the Info.plist value",
-                metadata: ["configured": "\(environment.keychainAccessGroup)"]
+                metadata: ["configured": "\(keychainAccessGroup)"]
             )
         }
         return resolved

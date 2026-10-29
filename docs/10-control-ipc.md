@@ -36,7 +36,8 @@ public struct IPCError: Error, Codable, Sendable {
 }
 ```
 
-- 编码：JSON（`JSONEncoder`，日期 ISO 8601，字节 Base64）。
+- 编码：JSON（`JSONEncoder`，日期 ISO 8601，字节 Base64，键排序）。`outcome` 编码为 `{"success": <负载>}` 或 `{"failure": <IPCError>}`；负载编码为 `{"type": "status", "value": {...}}`（无返回值的命令为 `{"type": "empty"}`）。请求无法解码时响应的 `id` 为全零 UUID。
+- 实现：消息类型、`IPCCodec`、App 侧客户端核心 `IPCClient`（超时、版本与响应校验，传输抽象为 `IPCTransport`）在 `AetherIPC`；`AetherControl` 的 `ProviderSessionTransport` 基于 `NETunnelProviderSession`，`TunnelClient` 提供类型安全的方法；隧道侧 `IPCDispatcher` 在 `AetherEngine`。
 - 版本：`version` 主版本不一致时隧道返回 `IPC-002`，App 提示重启隧道。
 - 大小：响应负载应 < 256 KiB；列表类命令必须分页（`limit` 上限 200）。
 - 超时：App 侧默认 5 秒；耗时操作（测速、资源更新）立即返回任务 ID，结果通过状态查询获取。
@@ -134,6 +135,7 @@ App 在前台时以 1 Hz 调用 `getStatus` 与 `getTraffic` 刷新首页；进�
 4. 停止：`connection.stopVPNTunnel()`。若按需连接已开启，先把 `isOnDemandEnabled` 设为 `false` 并保存，否则系统会立即重连；界面提示"按需连接已暂停"。
 5. 监听 `NEVPNStatusDidChange`，映射为界面状态：未安装 / 已断开 / 连接中 / 已连接 / 重新连接中 / 断开中。
 6. 授权被拒、配置失效时给出明确说明与"重新安装 VPN 配置"按钮。
+7. 隧道启动失败时以带错误码的 `NSError`（域 `Aether`，`userInfo["AetherErrorCode"]`）调用 completion；状态变为已断开后 App 用 `fetchLastDisconnectError` 取回并展示该错误码。
 
 按需连接（M4）：
 

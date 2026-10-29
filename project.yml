@@ -72,7 +72,7 @@ targets:
       - target: AetherTunnel
       - package: AetherKit
         # M5 起加入 AetherCertificates，M6 起加入 AetherScript（见 02 §3.2）
-        products: [AetherProfile, AetherRules, AetherIPC, AetherStore, AetherControl]
+        products: [AetherFoundation, AetherProfile, AetherRules, AetherIPC, AetherStore, AetherControl, AetherKeychain]
 
   AetherTunnel:
     type: app-extension
@@ -106,7 +106,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(AETHER_TUNNEL_BUNDLE_ID)
     dependencies:
       - package: AetherKit
-        products: [AetherEngine, AetherTunnelSupport, AetherScript, AetherIPC, AetherStore]
+        products: [AetherFoundation, AetherEngine, AetherTunnelSupport, AetherKeychain, AetherScript, AetherIPC, AetherStore]
 
 schemes:
   Aether:

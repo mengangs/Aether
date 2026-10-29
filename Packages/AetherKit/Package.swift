@@ -50,7 +50,7 @@ var targets: [Target] = [
     .testTarget(name: "AetherHTTPTests", dependencies: ["AetherHTTP"]),
     .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC", "AetherTestSupport"]),
     .testTarget(name: "AetherStoreTests", dependencies: ["AetherStore"]),
-    .testTarget(name: "AetherEngineTests", dependencies: ["AetherEngine"]),
+    .testTarget(name: "AetherEngineTests", dependencies: ["AetherEngine", "AetherTestSupport"]),
 ]
 
 var products: [Product] = [
@@ -75,12 +75,15 @@ var products: [Product] = [
         // hev-socks5-tunnel 的 xcframework，由 Scripts/build-hev.sh 生成（docs/03 §6.1）。
         .binaryTarget(name: "CHevSocks5Tunnel", path: "Binaries/HevSocks5Tunnel.xcframework"),
         .target(name: "AetherScript", dependencies: ["AetherScriptCore"]),
-        .target(name: "AetherControl", dependencies: ["AetherIPC"]),
+        .target(name: "AetherControl", dependencies: ["AetherFoundation", "AetherIPC"]),
         .target(
             name: "AetherKeychain",
             dependencies: ["AetherFoundation", "AetherIPC", .product(name: "Logging", package: "swift-log")]
         ),
-        .target(name: "AetherTunnelSupport", dependencies: ["AetherEngine", "CHevSocks5Tunnel"]),
+        .target(
+            name: "AetherTunnelSupport",
+            dependencies: ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel"]
+        ),
 
         .testTarget(name: "AetherScriptTests", dependencies: ["AetherScript"]),
         .testTarget(name: "AetherControlTests", dependencies: ["AetherControl"]),

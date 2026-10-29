@@ -108,7 +108,7 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 
 ## 3. 隧道网络设置
 
-`NetworkSettingsBuilder` 从运行配置生成 `NEPacketTunnelNetworkSettings`：
+`NetworkSettingsBuilder`（`AetherTunnelSupport`）把平台无关的 `TunnelNetworkSettingsSpec`（`AetherEngine`，可在 Linux 上测试）转换为 `NEPacketTunnelNetworkSettings`；M2-09 起 spec 由运行配置生成（M0 的空隧道见 `TunnelNetworkSettingsSpec.emptyTunnel`：只路由 `198.18.0.0/15`、不改 DNS）。完整设置：
 
 | 项 | 值 |
 | --- | --- |
