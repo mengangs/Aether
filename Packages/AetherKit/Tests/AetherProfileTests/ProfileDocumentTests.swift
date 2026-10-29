@@ -217,6 +217,12 @@ struct ProfileParserFuzzTests {
                 Issue.record("round trip failed at iteration \(iteration)")
                 return
             }
+            // 类型化阶段同样不得崩溃。
+            let fragment = FragmentParser.parse(document, isModule: iteration % 5 == 0)
+            var sink = DiagnosticSink(file: "fuzz.conf")
+            var resources: [ExternalResourceRef] = []
+            _ = GeneralParser.parse(fragment.generalEntries, sink: &sink, resources: &resources)
+            _ = MITMParser.parse(fragment.mitmEntries, sink: &sink)
         }
     }
 

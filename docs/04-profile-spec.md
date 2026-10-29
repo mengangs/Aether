@@ -574,6 +574,17 @@ YAML `proxies` 字段映射：
 | `CFG-091` | error | 外部资源 URL 无效 |
 | `CFG-099` | info | 兼容性提示 |
 
+### 13.1 诊断细则
+
+实现中对边界情况的约定（`AetherProfile`，M1-03）：
+
+- **尚未实现的能力**（标为 M7 的语法）：解析并保留，给出 `CFG-099`（info），不生效。包括 `encrypted-dns-server` 中的 `quic://`、`ipv6 = true`、`http-api`、`allow-wifi-access = true`、`underlying-proxy`、`subnet` 组、`[MITM] h2 = true`、`[Host]` 的 `server:script:`、`type=dns` / `type=rule` 脚本。规则类型 `SCRIPT`、`CELLULAR-RADIO` 与 iOS 不支持的类型一样给出 `CFG-031`（规则不生效）。
+- **兼容别名**：`MATCH` 视为 `FINAL`、`DST-PORT` 视为 `DEST-PORT`、`geoip-maxmind-url` 视为 `geoip-db-url`、脚本参数 `cron-expression` 视为 `cronexp`；前两者给出 `CFG-099`。`IP-ASN` 的值可带 `AS` 前缀。
+- **代理**：`key=value` 参数之后再出现位置字段为 `CFG-004`；非 TLS 节点上写了 TLS 参数为 `CFG-003`；未知类型与 M7 类型一样为 `CFG-022`（节点不可用）；VMess `alterId > 0` 或 `vmess-aead=false` 为 `CFG-023`。
+- **策略组**：参数不适用于该组类型（如 `select` 上的 `tolerance`）为 `CFG-003`。含 `=` 的字段一定是参数（策略名不可能含 `=`）。
+- **[General]**：`fake-ip-range` 必须是不小于 /24 的 IPv4 段；`resource-update-interval` 小于 60 秒时按 60 秒处理；`[General]` 与 `[MITM]` 中的列表值用与条目相同的分词器（支持引号）。
+- **脚本**：`event-name` 只支持 `network-changed`，其它值为 `CFG-020`。
+
 有任何 `error` 级诊断的配置不得提交为运行包；`warning` 与 `info` 不阻止提交。每条诊断包含：码、级别、文件（配置或模块名）、行号、列号（可选）、参数（用于本地化消息插值）。
 
 ## 14. 兼容性

@@ -17,6 +17,13 @@ public struct CIDR: Hashable, Sendable, CustomStringConvertible {
         self.prefixLength = prefixLength
     }
 
+    /// IPv4 地址块；前缀超出 0–32 时截断到范围内。
+    public init(ipv4: IPv4Address, prefixLength: Int) {
+        let length = min(max(prefixLength, 0), 32)
+        network = .v4(IPv4Address(ipv4.value & Self.mask32(length)))
+        self.prefixLength = length
+    }
+
     /// 解析 `地址/前缀`；省略前缀时视为单个地址（/32 或 /128）。
     public init?(_ text: some StringProtocol) {
         let string = String(text)
