@@ -51,3 +51,32 @@ jobs:
 
       - name: Package tests (macOS host)
         run: swift test --package-path Packages/AetherKit --parallel
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Identifier overrides
+        # 仓库变量（Settings → Secrets and variables → Actions → Variables），未设置时使用通用默认值（docs/03 §8.4）。
+        env:
+          AETHER_BUNDLE_ID_PREFIX: ${{ vars.AETHER_BUNDLE_ID_PREFIX }}
+          AETHER_TUNNEL_BUNDLE_ID: ${{ vars.AETHER_TUNNEL_BUNDLE_ID }}
+          AETHER_WIDGET_BUNDLE_ID: ${{ vars.AETHER_WIDGET_BUNDLE_ID }}
+          AETHER_APP_GROUP: ${{ vars.AETHER_APP_GROUP }}
+          AETHER_KEYCHAIN_GROUP: ${{ vars.AETHER_KEYCHAIN_GROUP }}
+          AETHER_TEAM_ID: ${{ vars.AETHER_TEAM_ID }}
+          AETHER_URL_SCHEME: ${{ vars.AETHER_URL_SCHEME }}
+        run: ./Scripts/write-ci-xcconfig.sh
+
+      - name: Generate project
+        run: ./Scripts/bootstrap.sh
+
+      - name: Build iOS
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Aether.xcodeproj -scheme Aether \
+            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) \
+            | xcbeautify --renderer github-actions

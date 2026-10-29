@@ -1,0 +1,12 @@
+// 复制为 Config/Local.xcconfig 后填写；该文件不入库（docs/03 §3.1）。
+// 只填需要覆盖的项，其余沿用 Identifiers.xcconfig 的默认值。
+
+DEVELOPMENT_TEAM = XXXXXXXXXX
+AETHER_BUNDLE_ID_PREFIX = com.yourname.aether
+
+// 可选：扩展 Bundle ID、App Group、Keychain 访问组与 Team ID 的单独覆盖。
+// AETHER_TUNNEL_BUNDLE_ID = com.yourname.aether.tunnel
+// AETHER_WIDGET_BUNDLE_ID = com.yourname.aether.widget
+// AETHER_APP_GROUP = group.com.yourname.aether
+// AETHER_TEAM_ID = XXXXXXXXXX
+// AETHER_KEYCHAIN_GROUP = XXXXXXXXXX.com.yourname.aether.shared

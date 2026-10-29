@@ -23,3 +23,14 @@ Config/Local.xcconfig
 *.swp
 .idea/
 .vscode/
+
+# 由 Scripts/write-ci-xcconfig.sh 在 CI 中生成
+Config/CI.xcconfig
+
+# 由 XcodeGen 根据 project.yml 生成（修改请改 project.yml）
+App/Info.plist
+App/Aether.entitlements
+Tunnel/Info.plist
+Tunnel/AetherTunnel.entitlements
+Widget/Info.plist
+Widget/AetherWidget.entitlements

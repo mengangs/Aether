@@ -1,0 +1,22 @@
+// 标识符的通用默认值（docs/03 §3.1）。所有标识符都由这里派生，代码只通过 AppEnvironment 读取。
+//
+// 覆盖方式（优先级从低到高）：
+//   1. 本文件的默认值；
+//   2. Config/Local.xcconfig：本地开发，自行填写（不入库）；
+//   3. Config/CI.xcconfig：CI 由 Scripts/write-ci-xcconfig.sh 根据仓库变量生成（不入库）。
+// 不要把个人或团队的真实标识符写进本文件。
+
+// 主 App 的 Bundle ID，同时用作日志 subsystem、Darwin 通知名、后台任务 ID 等的前缀。
+AETHER_BUNDLE_ID_PREFIX = com.example.aether
+
+// 扩展的 Bundle ID 可单独覆盖，不强制等于「前缀.tunnel」；但 iOS 要求扩展 Bundle ID 以主 App 的 Bundle ID 开头。
+AETHER_TUNNEL_BUNDLE_ID = $(AETHER_BUNDLE_ID_PREFIX).tunnel
+AETHER_WIDGET_BUNDLE_ID = $(AETHER_BUNDLE_ID_PREFIX).widget
+
+// Team ID。签名构建时与 DEVELOPMENT_TEAM 相同；未签名构建时 $(AppIdentifierPrefix) 为空，
+// 所以 Keychain 访问组用它显式拼出。
+AETHER_TEAM_ID = $(DEVELOPMENT_TEAM)
+
+AETHER_APP_GROUP = group.$(AETHER_BUNDLE_ID_PREFIX)
+AETHER_KEYCHAIN_GROUP = $(AETHER_TEAM_ID).$(AETHER_BUNDLE_ID_PREFIX).shared
+AETHER_URL_SCHEME = aether

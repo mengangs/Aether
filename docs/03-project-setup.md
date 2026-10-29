@@ -9,18 +9,19 @@ Aether/
 │   ├── Base.xcconfig                # 所有 target 共用的构建设置
 │   ├── Identifiers.xcconfig         # Bundle ID 前缀等标识符默认值
 │   ├── Version.xcconfig             # MARKETING_VERSION
-│   ├── Local.xcconfig.example       # 本地覆盖模板（DEVELOPMENT_TEAM、标识符前缀）
-│   └── Local.xcconfig               # 本地覆盖（.gitignore，可选）
+│   ├── Local.xcconfig.example       # 本地覆盖模板（DEVELOPMENT_TEAM、标识符）
+│   ├── Local.xcconfig               # 本地覆盖（.gitignore，可选）
+│   └── CI.xcconfig                  # CI 由仓库变量生成的标识符覆盖（.gitignore，见 §8.4）
 ├── App/
 │   ├── Sources/                     # SwiftUI 界面、App 级服务
 │   ├── Resources/                   # Assets.xcassets、Localizable.xcstrings、PrivacyInfo.xcprivacy
-│   ├── Info.plist
-│   └── Aether.entitlements
+│   ├── Info.plist                   # 由 XcodeGen 按 project.yml 生成（.gitignore）
+│   └── Aether.entitlements          # 同上
 ├── Tunnel/
 │   ├── Sources/PacketTunnelProvider.swift 等
 │   ├── Resources/PrivacyInfo.xcprivacy
-│   ├── Info.plist
-│   └── AetherTunnel.entitlements
+│   ├── Info.plist                   # 由 XcodeGen 生成（.gitignore）
+│   └── AetherTunnel.entitlements    # 同上
 ├── Widget/                          # M4
 ├── Share/                           # M7
 ├── Packages/
@@ -36,6 +37,8 @@ Aether/
 ├── Scripts/
 │   ├── bootstrap.sh                 # 一键：编译 vendored 库 + 生成工程
 │   ├── build-hev.sh                 # 编译 HevSocks5Tunnel.xcframework
+│   ├── write-ci-xcconfig.sh         # 由环境变量生成 Config/CI.xcconfig
+│   ├── check-architecture.swift     # 架构约束检查（§9）
 │   └── interop/                     # 互通测试的 docker compose 与服务端配置
 ├── docs/
 ├── examples/
@@ -46,7 +49,7 @@ Aether/
 └── README.md
 ```
 
-`.gitignore` 至少包含：`*.xcodeproj/`、`*.xcworkspace/`（除 Package 内自动生成的以外）、`DerivedData/`、`.build/`、`Packages/AetherKit/Binaries/`、`Config/Local.xcconfig`、`build/`。
+`.gitignore` 至少包含：`*.xcodeproj/`、`*.xcworkspace/`、`.swiftpm/`、`DerivedData/`、`.build/`、`Packages/AetherKit/Binaries/`、`Config/Local.xcconfig`、`Config/CI.xcconfig`、`build/`，以及 XcodeGen 生成的各 target 的 `Info.plist` 与 `.entitlements`（它们完全由 `project.yml` 决定，入库只会制造与 `project.yml` 不一致的机会）。
 
 ## 2. 工具链
 
@@ -69,12 +72,21 @@ Aether/
 `Config/Identifiers.xcconfig`：
 
 ```xcconfig
-// 所有标识符由此派生。可在 Local.xcconfig 中覆盖。
-AETHER_BUNDLE_ID_PREFIX = com.example.aether
+// 通用默认值；可在 Local.xcconfig（本地）或 CI.xcconfig（CI，来自仓库变量）中覆盖。
+AETHER_BUNDLE_ID_PREFIX = com.example.aether                      // 主 App 的 Bundle ID，兼作前缀
+AETHER_TUNNEL_BUNDLE_ID = $(AETHER_BUNDLE_ID_PREFIX).tunnel       // 可单独覆盖
+AETHER_WIDGET_BUNDLE_ID = $(AETHER_BUNDLE_ID_PREFIX).widget       // 可单独覆盖（M4）
+AETHER_TEAM_ID = $(DEVELOPMENT_TEAM)
 AETHER_APP_GROUP = group.$(AETHER_BUNDLE_ID_PREFIX)
-AETHER_KEYCHAIN_GROUP = $(AppIdentifierPrefix)$(AETHER_BUNDLE_ID_PREFIX).shared
+AETHER_KEYCHAIN_GROUP = $(AETHER_TEAM_ID).$(AETHER_BUNDLE_ID_PREFIX).shared
 AETHER_URL_SCHEME = aether
 ```
+
+- 仓库中只保留通用默认值，不得写入个人或团队的真实标识符。
+- `AETHER_BUNDLE_ID_PREFIX` 是主 App 的 Bundle ID，同时用作日志 subsystem、Darwin 通知名、后台任务与导出 UTI 的前缀。
+- 扩展的 Bundle ID 用 `AETHER_TUNNEL_BUNDLE_ID` / `AETHER_WIDGET_BUNDLE_ID` 单独覆盖，不强制等于"前缀.tunnel"；但 iOS 安装时要求扩展的 Bundle ID 以主 App 的 Bundle ID 加 `.` 开头，覆盖时须遵守。
+- Keychain 访问组不用 `$(AppIdentifierPrefix)`：未签名构建时它为空，组名会缺少 Team ID 前缀。改用 `AETHER_TEAM_ID` 显式拼出；运行时再按 §3.2 探测一次实际前缀。
+- 覆盖优先级（低 → 高）：`Identifiers.xcconfig` → `Local.xcconfig` → `CI.xcconfig`。
 
 `Config/Base.xcconfig`：
 
@@ -82,13 +94,13 @@ AETHER_URL_SCHEME = aether
 #include "Identifiers.xcconfig"
 #include "Version.xcconfig"
 #include? "Local.xcconfig"
+#include? "CI.xcconfig"
 
 IPHONEOS_DEPLOYMENT_TARGET = 17.0
 TARGETED_DEVICE_FAMILY = 1,2
 SWIFT_VERSION = 6.0
 SWIFT_STRICT_CONCURRENCY = complete
 CODE_SIGN_STYLE = Automatic
-DEVELOPMENT_TEAM =
 ENABLE_USER_SCRIPT_SANDBOXING = YES
 DEAD_CODE_STRIPPING = YES
 ```
@@ -106,6 +118,7 @@ CURRENT_PROJECT_VERSION = 1   // CI 以提交计数覆盖，见 §8
 // 复制为 Local.xcconfig 后填写；该文件不入库。
 DEVELOPMENT_TEAM = XXXXXXXXXX
 AETHER_BUNDLE_ID_PREFIX = com.yourname.aether
+// 可选：AETHER_TUNNEL_BUNDLE_ID、AETHER_WIDGET_BUNDLE_ID、AETHER_APP_GROUP、AETHER_TEAM_ID、AETHER_KEYCHAIN_GROUP
 ```
 
 ### 3.2 运行时读取标识符
@@ -114,9 +127,10 @@ AETHER_BUNDLE_ID_PREFIX = com.yourname.aether
 
 | 键 | 值 |
 | --- | --- |
+| `AetherBundleIdentifierPrefix` | `$(AETHER_BUNDLE_ID_PREFIX)` |
 | `AetherAppGroupIdentifier` | `$(AETHER_APP_GROUP)` |
 | `AetherKeychainAccessGroup` | `$(AETHER_KEYCHAIN_GROUP)` |
-| `AetherTunnelBundleIdentifier` | `$(AETHER_BUNDLE_ID_PREFIX).tunnel` |
+| `AetherTunnelBundleIdentifier` | `$(AETHER_TUNNEL_BUNDLE_ID)` |
 | `AetherURLScheme` | `$(AETHER_URL_SCHEME)` |
 
 代码只通过 `AetherIPC` 中的 `AppEnvironment` 读取：
@@ -144,6 +158,10 @@ public struct AppEnvironment: Sendable {
 | `keychain-access-groups` = `[$(AETHER_KEYCHAIN_GROUP)]` | ✓ | ✓ | — |
 | `com.apple.developer.networking.wifi-info` = `true` | ✓ | ✓ | — |
 
+entitlements 只声明表中这些实际需要的值：`networkextension` 只写 `packet-tunnel-provider`，不声明 app-proxy、content-filter 等其它类型。
+
+能力缺失时必须优雅降级，不得崩溃：缺 `wifi-info` 时 SSID 不可用（相关规则与按需连接条件按"未知网络"处理并给出诊断）；App Group 不可用时 App 显示明确的错误页（`STO-001`）；Keychain 访问组不可用时 MitM 等依赖 Keychain 的功能报错并保持关闭。
+
 `wifi-info` 用于 SSID 条件（SUBNET 规则、按需连接）。读取当前 Wi-Fi 信息需同时满足"App 已安装有效的 VPN 配置"等系统条件，详见 [06 §11](06-network-engine.md#11-网络环境与切换)。
 
 ### 3.4 Info.plist 要点（App）
@@ -161,98 +179,15 @@ public struct AppEnvironment: Sendable {
 
 ## 4. XcodeGen
 
-`project.yml` 骨架（随里程碑增补 target）：
+工程定义以仓库根目录的 `project.yml` 为准（随里程碑增补 target）。要点：
 
-```yaml
-name: Aether
-options:
-  deploymentTarget:
-    iOS: "17.0"
-  createIntermediateGroups: true
-  groupSortPosition: top
-configFiles:
-  Debug: Config/Base.xcconfig
-  Release: Config/Base.xcconfig
-settings:
-  base:
-    SWIFT_VERSION: "6.0"
-packages:
-  AetherKit:
-    path: Packages/AetherKit
-targets:
-  Aether:
-    type: application
-    platform: iOS
-    sources:
-      - App/Sources
-      - App/Resources
-    info:
-      path: App/Info.plist
-      properties:
-        CFBundleDisplayName: Aether
-        UILaunchScreen: {}
-        AetherAppGroupIdentifier: $(AETHER_APP_GROUP)
-        AetherKeychainAccessGroup: $(AETHER_KEYCHAIN_GROUP)
-        AetherTunnelBundleIdentifier: $(AETHER_BUNDLE_ID_PREFIX).tunnel
-        AetherURLScheme: $(AETHER_URL_SCHEME)
-        CFBundleURLTypes:
-          - CFBundleURLSchemes: [$(AETHER_URL_SCHEME)]
-    entitlements:
-      path: App/Aether.entitlements
-      properties:
-        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
-        com.apple.security.application-groups: [$(AETHER_APP_GROUP)]
-        keychain-access-groups: [$(AETHER_KEYCHAIN_GROUP)]
-        com.apple.developer.networking.wifi-info: true
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(AETHER_BUNDLE_ID_PREFIX)
-    dependencies:
-      - target: AetherTunnel
-      - package: AetherKit
-        # M5 起加入 AetherCertificates，M6 起加入 AetherScript（见 02 §3.2）
-        products: [AetherProfile, AetherRules, AetherIPC, AetherStore, AetherControl]
-
-  AetherTunnel:
-    type: app-extension
-    platform: iOS
-    sources:
-      - Tunnel/Sources
-      - Tunnel/Resources
-    info:
-      path: Tunnel/Info.plist
-      properties:
-        CFBundleDisplayName: Aether Tunnel
-        AetherAppGroupIdentifier: $(AETHER_APP_GROUP)
-        AetherKeychainAccessGroup: $(AETHER_KEYCHAIN_GROUP)
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
-    entitlements:
-      path: Tunnel/AetherTunnel.entitlements
-      properties:
-        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
-        com.apple.security.application-groups: [$(AETHER_APP_GROUP)]
-        keychain-access-groups: [$(AETHER_KEYCHAIN_GROUP)]
-        com.apple.developer.networking.wifi-info: true
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(AETHER_BUNDLE_ID_PREFIX).tunnel
-    dependencies:
-      - package: AetherKit
-        products: [AetherEngine, AetherTunnelSupport, AetherScript, AetherIPC, AetherStore]
-
-schemes:
-  Aether:
-    build:
-      targets:
-        Aether: all
-        AetherTunnel: all
-    run:
-      config: Debug
-    archive:
-      config: Release
-```
+- 项目级 `configFiles` 指向 `Config/Base.xcconfig`（Debug 与 Release 相同），开发语言 `zh-Hans`。
+- `AetherKit` 以本地包引用（`packages.AetherKit.path: Packages/AetherKit`）。
+- `Aether`（application）：源码 `App/Sources`、`App/Resources`；`PRODUCT_BUNDLE_IDENTIFIER = $(AETHER_BUNDLE_ID_PREFIX)`；依赖 `AetherTunnel` target 与 `AetherKit` 的 `AetherProfile`、`AetherRules`、`AetherIPC`、`AetherStore`、`AetherControl`（M5 起加 `AetherCertificates`，M6 起加 `AetherScript`，见 02 §3.2）。
+- `AetherTunnel`（app-extension，`com.apple.networkextension.packet-tunnel`，主类 `$(PRODUCT_MODULE_NAME).PacketTunnelProvider`）：`PRODUCT_BUNDLE_IDENTIFIER = $(AETHER_TUNNEL_BUNDLE_ID)`；依赖 `AetherEngine`、`AetherTunnelSupport`、`AetherScript`、`AetherIPC`、`AetherStore`。
+- 两个 target 的 Info.plist 与 entitlements 由 `info.properties` / `entitlements.properties` 生成，内容见 §3.2–§3.4；其中的标识符全部是 `$(AETHER_*)` 变量。
+- scheme `Aether` 构建 App 与 Tunnel；Run 用 Debug，Archive 用 Release。
+- `Scripts/check-architecture.swift` 解析 `project.yml` 中 App 与小组件的 `products`，拒绝直接或间接依赖引擎相关模块。
 
 修改工程结构只改 `project.yml`，然后重新运行 `./Scripts/bootstrap.sh`。XcodeGen 语法以其官方文档为准；上面的骨架如与当前版本语法不符，以能生成可构建工程为准修正并更新本节。
 

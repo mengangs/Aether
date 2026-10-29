@@ -1,0 +1,13 @@
+// 所有 target 共用的构建设置（docs/03 §3.1）。
+#include "Identifiers.xcconfig"
+#include "Version.xcconfig"
+#include? "Local.xcconfig"
+#include? "CI.xcconfig"
+
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+TARGETED_DEVICE_FAMILY = 1,2
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+CODE_SIGN_STYLE = Automatic
+ENABLE_USER_SCRIPT_SANDBOXING = YES
+DEAD_CODE_STRIPPING = YES
