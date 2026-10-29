@@ -1,0 +1,23 @@
+profile: 02-airport-subscription.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (0):
+groups (4):
+  节点选择 = select ["自动选择", "故障转移"] policy-path
+  自动选择 = url-test [] policy-path
+  故障转移 = fallback [] policy-path filter=(香港|HK|Hong)
+  负载均衡 = load-balance [] policy-path
+rules (5):
+  #1 DOMAIN-SUFFIX → 节点选择 
+  #2 DOMAIN-KEYWORD → REJECT 
+  #3 IP-CIDR → DIRECT no-resolve
+  #4 GEOIP → DIRECT 
+  #5 FINAL → 节点选择 
+hosts (0): 
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (2):
+  managed-profile https://sub.example.com/aether?token=example-token interval=43200
+  policy-path https://sub.example.com/nodes?token=example-token interval=43200
+diagnostics (0):
+committable: true

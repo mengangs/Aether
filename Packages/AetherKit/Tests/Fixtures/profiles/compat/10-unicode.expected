@@ -1,0 +1,20 @@
+profile: 10-unicode.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (2):
+  🇭🇰 香港 01 = ss 香港.例子.测试:8388 [usable]
+  🇯🇵 日本 = trojan jp.example.net:443 [usable,tls]
+groups (2):
+  🚀 节点选择 = select ["🇭🇰 香港 01", "🇯🇵 日本", "DIRECT"] 
+  🎬 流媒体 = fallback ["🇯🇵 日本", "🇭🇰 香港 01"] 
+rules (4):
+  #1 DOMAIN-SUFFIX → 🚀 节点选择 
+  #2 DOMAIN → 🎬 流媒体 
+  #3 DOMAIN-WILDCARD → 🎬 流媒体 
+  #4 FINAL → 🚀 节点选择 
+hosts (1): xn--cesv58a.xn--fsqu00a.xn--0zwm56d
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (0):
+diagnostics (0):
+committable: true

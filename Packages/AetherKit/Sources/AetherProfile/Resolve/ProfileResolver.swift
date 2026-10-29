@@ -35,7 +35,8 @@ public enum ProfileResolver {
         let mitmEntries = KeyedOverlay.apply([base.mitmEntries] + applied.reversed().map(\.mitmEntries)) { _ in nil }
         let ordered = applied + [base]
 
-        var resources = ordered.flatMap(\.resources)
+        var resources = managedProfileResource(document, sink: &sink).map { [$0] } ?? []
+        resources += ordered.flatMap(\.resources)
         let general = GeneralParser.parse(generalEntries, sink: &sink, resources: &resources)
         let mitm = MITMParser.parse(mitmEntries, sink: &sink)
         checkPolicyReferences(general: general, proxies: base.proxies, names: baseNames, sink: &sink)
@@ -87,6 +88,61 @@ public enum ProfileResolver {
             ok ? fragment : nil,
             ResolvedModule(name: module.name, metadata: metadata, isApplied: ok, diagnostics: sink.diagnostics)
         )
+    }
+
+    /// `#!MANAGED-CONFIG <URL> interval=<秒> strict=<bool>`（docs/04 §12.3）：托管配置自身也是外部资源。
+    static func managedProfileResource(_ document: ProfileDocument, sink: inout DiagnosticSink) -> ExternalResourceRef?
+    {
+        guard
+            let line = document.lines.first(where: {
+                if case .directive(let name, _) = $0.kind { return name.uppercased() == "MANAGED-CONFIG" }
+                return false
+            }), case .directive(_, let value) = line.kind
+        else { return nil }
+        let parts = value.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard let url = parts.first, url.lowercased().hasPrefix("http") else {
+            sink.report(
+                .cfgInvalidResourceURL, line: line.lineNumber, arguments: [value], "Invalid #!MANAGED-CONFIG URL")
+            return nil
+        }
+        switch ValueParser.checkResource(url) {
+        case .invalid:
+            sink.report(.cfgInvalidResourceURL, line: line.lineNumber, arguments: [url], "Invalid #!MANAGED-CONFIG URL")
+            return nil
+        case .insecure:
+            sink.report(
+                .cfgInsecureResource, line: line.lineNumber, arguments: [url],
+                "Managed profile is downloaded over plain HTTP")
+        case .ok:
+            break
+        }
+        var interval: Double?
+        for part in parts.dropFirst() {
+            let pair = part.split(separator: "=", maxSplits: 1).map(String.init)
+            guard pair.count == 2 else { continue }
+            switch pair[0].lowercased() {
+            case "interval":
+                interval = ValueParser.seconds(pair[1])
+                if interval == nil {
+                    sink.report(
+                        .cfgInvalidValue, line: line.lineNumber, arguments: ["interval", pair[1]],
+                        "Invalid managed profile interval")
+                }
+            case "strict":
+                if ValueParser.bool(pair[1]) == nil {
+                    sink.report(
+                        .cfgInvalidValue, line: line.lineNumber, arguments: ["strict", pair[1]],
+                        "Invalid managed profile strict flag")
+                }
+            default:
+                sink.report(
+                    .cfgUnknownKey, line: line.lineNumber, arguments: [pair[0]],
+                    "Unknown #!MANAGED-CONFIG parameter \(pair[0])")
+            }
+        }
+        return ExternalResourceRef(
+            url: url, kind: .managedProfile, updateInterval: interval,
+            source: SourceReference(file: document.fileName, line: line.lineNumber, raw: line.raw))
     }
 
     /// 脚本名重复时保留先出现者（`CFG-062`）。

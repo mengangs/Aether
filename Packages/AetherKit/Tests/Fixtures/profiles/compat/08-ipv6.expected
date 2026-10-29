@@ -1,0 +1,19 @@
+profile: 08-ipv6.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["2001:db8::53", "[2001:db8::54]:5353", "system"] encrypted=[] ipv6=true system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=3 hijack=["*:53", "[2001:db8::1]:53"]
+proxies (1):
+  V6 = socks5 2001:db8::10:1080 [usable]
+groups (0):
+rules (5):
+  #1 IP-CIDR6 → V6 
+  #2 IP-CIDR6 → DIRECT 
+  #3 IP-CIDR → V6 no-resolve
+  #4 HOSTNAME-TYPE → V6 
+  #5 FINAL → DIRECT 
+hosts (2): v6only.example.com, dual.example.com
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (0):
+diagnostics (1):
+  08-ipv6.conf:2: info: CFG-099 IPv6 proxying arrives in a later version (M7)
+committable: true

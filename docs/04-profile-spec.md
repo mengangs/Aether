@@ -305,7 +305,7 @@ AND,((OR,((DOMAIN,a.com),(DOMAIN,b.com))),(PROTOCOL,UDP)),DIRECT
 | `server:IP[:端口]` / `server:system` / `server:https://…` / `server:tls://…` | 匹配的域名使用指定上游解析 | M3 |
 | `server:script:<脚本名>` | 由 `type=dns` 的脚本给出解析结果（[09 §2](09-scripting.md#2-脚本类型与触发)） | M7 |
 
-匹配顺序：完全匹配优先于通配；通配之间按文件顺序（模块条目在前，见 §12.2）。静态结果同样适用于 Fake IP 模式下的 `always-real-ip` 判断：命中静态 IP 的域名总是返回该 IP。
+模式与规则中的主机名一样规范化（小写，Unicode 标签转为 Punycode）。匹配顺序：完全匹配优先于通配；通配之间按文件顺序（模块条目在前，见 §12.2）。静态结果同样适用于 Fake IP 模式下的 `always-real-ip` 判断：命中静态 IP 的域名总是返回该 IP。
 
 ```ini
 [Host]
@@ -506,6 +506,7 @@ hostname = %APPEND% api.example.org
 - App 按 `interval`（秒）在前台或后台刷新时更新（见 [11 §5](11-storage.md#5-外部资源)），隧道运行时更新成功会自动重载。
 - 托管配置在编辑器中只读；用户可"复制为本地配置"后编辑。
 - `strict=true`：更新失败且距上次成功超过 `2 × interval` 时，在首页显示警告；不阻止使用。
+- 托管配置的 URL 作为 `managed-profile` 类外部资源出现在 `ResolvedProfile.externalResources` 中（更新间隔取 `interval`）；URL 无效为 `CFG-091`，HTTP 为 `CFG-090`，未知参数为 `CFG-003`。
 
 ### 12.4 节点订阅格式
 
@@ -602,7 +603,7 @@ YAML `proxies` 字段映射：
 - **目标**：主流客户端的 INI 风格配置导入 Aether 后，所有 Aether 支持的部分行为一致；不支持的部分给出诊断并保留原文，再导出时原样写回。
 - **未知内容**：未知节、键、参数、规则类型全部保留在 `ProfileDocument` 中，渲染时原样输出。
 - **大小写**：节名、键名、规则类型、策略类型不区分大小写；策略名、主机名中的大小写在比较主机名时忽略，策略名区分大小写（与内置策略比较时不区分）。
-- **兼容测试**：`Tests/Fixtures/profiles/compat/` 收集真实世界风格的配置（去除凭据），每个文件配一份期望的诊断列表与解析摘要，作为回归测试。
+- **兼容测试**：`Tests/Fixtures/profiles/compat/` 收集真实世界风格的配置（去除凭据），每个文件配一份期望的诊断列表与解析摘要，作为回归测试。当前 12 份：Surge 风格综合配置、机场托管订阅、Windows 编辑器保存（BOM + CRLF + 制表符）、各种注释写法、不支持的特性、重写与脚本、复杂逻辑规则、IPv6、错误集中、Unicode 名称与国际化域名、FINAL 位置、`[General]` 全部键。
 
 ## 15. 解析器与模型实现要求
 

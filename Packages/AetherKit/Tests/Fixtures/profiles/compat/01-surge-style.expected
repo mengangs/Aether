@@ -1,0 +1,32 @@
+profile: 01-surge-style.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["223.5.5.5", "119.29.29.29", "system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=6 hijack=["*:53"]
+proxies (3):
+  HK 01 = ss hk01.example.net:10001 [usable,udp]
+  JP 01 = vmess jp01.example.net:443 [usable,tls,ws]
+  US 01 = trojan us01.example.net:443 [usable,tls]
+groups (3):
+  Proxy = select ["Auto", "HK 01", "JP 01", "US 01", "DIRECT"] 
+  Auto = url-test ["HK 01", "JP 01", "US 01"] 
+  Apple = select ["DIRECT", "Proxy"] 
+rules (7):
+  #1 RULE-SET → Apple 
+  #2 RULE-SET → REJECT-TINYGIF 
+  #3 DOMAIN-SET → Proxy 
+  #4 DOMAIN-SUFFIX → DIRECT 
+  #5 RULE-SET → DIRECT 
+  #6 GEOIP → DIRECT 
+  #7 FINAL → Proxy dns-failed
+hosts (2): *.example-corp.example, nas.home
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: *.api.example.com, -*.secure.example.com
+resources (3):
+  rule-set https://rules.example.com/surge/Apple.list interval=default
+  rule-set https://rules.example.com/surge/Reject.list interval=default
+  domain-set https://rules.example.com/surge/gfw.txt interval=default
+diagnostics (4):
+  01-surge-style.conf:7: warning: CFG-003 Unknown [General] key replica; kept as is
+  01-surge-style.conf:8: warning: CFG-003 Unknown [General] key wifi-assist; kept as is
+  01-surge-style.conf:10: warning: CFG-003 Unknown [General] key http-listen; kept as is
+  01-surge-style.conf:11: warning: CFG-003 Unknown [General] key external-controller-access; kept as is
+committable: true

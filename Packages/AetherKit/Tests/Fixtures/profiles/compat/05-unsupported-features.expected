@@ -1,0 +1,41 @@
+profile: 05-unsupported-features.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (7):
+  Snell = snell snell.example.net:- [unavailable]
+  SSH = ssh ssh.example.net:- [unavailable]
+  Old-SS = ss old.example.net:8388 [unavailable]
+  Legacy-VMess = vmess vm.example.net:443 [unavailable]
+  Vision = vless vision.example.net:443 [unavailable,tls]
+  Fast = https fast.example.net:443 [usable,tls]
+  Hy2 = hysteria2 hy2.example.net:- [unavailable]
+groups (1):
+  Proxy = select ["Snell", "SSH", "Old-SS", "Legacy-VMess", "Vision", "Fast", "Hy2", "DIRECT"] 
+rules (6):
+  #1 PROCESS-NAME → DIRECT ineffective
+  #2 SRC-IP → DIRECT ineffective
+  #3 SCRIPT → Proxy ineffective
+  #4 CELLULAR-RADIO → DIRECT ineffective
+  #5 DOMAIN-SUFFIX → Proxy 
+  #6 FINAL → Proxy 
+hosts (0): 
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (0):
+diagnostics (15):
+  05-unsupported-features.conf:4: info: CFG-099 DNS over QUIC (quic://dns.example.net) is planned for a later version and is ignored
+  05-unsupported-features.conf:7: warning: CFG-022 Proxy type snell is not supported; Snell is unavailable
+  05-unsupported-features.conf:8: warning: CFG-022 Proxy type ssh is not supported; SSH is unavailable
+  05-unsupported-features.conf:9: warning: CFG-023 Stream cipher aes-256-cfb is insecure and unsupported; Old-SS is unavailable
+  05-unsupported-features.conf:10: warning: CFG-023 Legacy (non-AEAD) VMess is unsupported; Legacy-VMess is unavailable
+  05-unsupported-features.conf:11: warning: CFG-023 VLESS flow xtls-rprx-vision (XTLS) is unsupported; Vision is unavailable
+  05-unsupported-features.conf:12: info: CFG-024 TCP Fast Open is not available on iOS; ignored
+  05-unsupported-features.conf:13: warning: CFG-022 Proxy type hysteria2 is not supported; Hy2 is unavailable
+  05-unsupported-features.conf:19: warning: CFG-031 PROCESS-NAME is not supported on iOS; the rule never matches
+  05-unsupported-features.conf:20: warning: CFG-031 SRC-IP is not supported on iOS; the rule never matches
+  05-unsupported-features.conf:21: warning: CFG-031 SCRIPT rules arrive in a later version (M7); the rule never matches
+  05-unsupported-features.conf:22: warning: CFG-031 CELLULAR-RADIO rules arrive in a later version (M7); the rule never matches
+  05-unsupported-features.conf:23: info: CFG-099 extended-matching is ignored: sniffed host names are always matched
+  05-unsupported-features.conf:26: warning: CFG-002 Unknown section [Panel]; kept as is
+  05-unsupported-features.conf:29: warning: CFG-002 Unknown section [WireGuard home]; kept as is
+committable: true

@@ -1,0 +1,42 @@
+profile: 09-errors.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (3):
+  Dup = https a.example.com:443 [usable,tls]
+  Dup = https b.example.com:443 [usable,tls]
+  DIRECT = https c.example.com:443 [usable,tls]
+groups (4):
+  Cycle-A = select ["Cycle-B"] 
+  Cycle-B = select ["Cycle-A"] 
+  Empty = select [] 
+  Ghost = select ["Nobody"] 
+rules (3):
+  #1 DOMAIN → Unknown-Policy 
+  #2 DOMAIN-SUFFIX → DIRECT 
+  #3 FINAL → DIRECT 
+hosts (0): 
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (0):
+diagnostics (20):
+  09-errors.conf:1: error: CFG-004 Entry appears before the first section
+  09-errors.conf:3: error: CFG-020 Invalid value for loglevel: expected debug, info, notice, warning or error
+  09-errors.conf:4: error: CFG-020 Invalid value for tun-mtu: expected 1280–9000
+  09-errors.conf:8: error: CFG-010 Policy name Dup is already used at line 7
+  09-errors.conf:9: error: CFG-010 DIRECT conflicts with a built-in policy name
+  09-errors.conf:10: error: CFG-020 Invalid port 0 in proxy Bad-Port
+  09-errors.conf:11: error: CFG-021 Trojan proxy Missing needs a password
+  09-errors.conf:12: error: CFG-004 Proxy Broken has an unterminated quote or parenthesis
+  09-errors.conf:15: error: CFG-012 Policy groups form a cycle: Cycle-A → Cycle-B → Cycle-A
+  09-errors.conf:17: error: CFG-013 Group Empty has no members
+  09-errors.conf:18: error: CFG-011 Group Ghost references unknown policy Nobody
+  09-errors.conf:21: error: CFG-011 Rule references unknown policy Unknown-Policy
+  09-errors.conf:22: error: CFG-032 Invalid IP-CIDR value 10.0.0.0/40
+  09-errors.conf:23: error: CFG-033 Invalid regular expression (unclosed
+  09-errors.conf:24: error: CFG-034 Invalid port 99999
+  09-errors.conf:25: error: CFG-030 Unknown rule type TELEPORT
+  09-errors.conf:26: warning: CFG-037 Unknown rule option sometimes
+  09-errors.conf:28: error: CFG-040 Invalid [Host] value not an address
+  09-errors.conf:30: error: CFG-050 URL rewrite needs: regex replacement type
+  09-errors.conf: warning: CFG-035 No FINAL rule; FINAL,DIRECT is appended
+committable: false

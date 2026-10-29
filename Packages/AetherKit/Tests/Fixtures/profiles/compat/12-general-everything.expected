@@ -1,0 +1,16 @@
+profile: 12-general-everything.conf
+general: loglevel=info dns-mode=real-ip dns-server=["system", "192.0.2.53:5353"] encrypted=["https://dns.example.net/dns-query", "tls://dot.example.net:853"] ipv6=false system-proxy=false mtu=1400 block-quic=never fake-ip=198.18.0.0/16 skip-proxy=2 hijack=["8.8.8.8:53", "*:53"]
+proxies (0):
+groups (0):
+rules (1):
+  #1 FINAL → DIRECT 
+hosts (0): 
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (2):
+  geoip-db https://resources.example.com/country.mmdb interval=default
+  ipasn-db https://resources.example.com/asn.mmdb interval=default
+diagnostics (1):
+  12-general-everything.conf:28: warning: CFG-005 [General] loglevel is repeated (first at line 2); the later value wins
+committable: true

@@ -1,0 +1,19 @@
+profile: 07-logical-rules.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (1):
+  P = socks5 192.0.2.10:1080 [usable]
+groups (0):
+rules (6):
+  #1 AND → P 
+  #2 OR → REJECT 
+  #3 NOT → P 
+  #4 AND → DIRECT 
+  #5 AND → P 
+  #6 FINAL → DIRECT 
+hosts (0): 
+rewrites: url=0 header=0 body=0 map-local=0
+scripts (0): 
+mitm: 
+resources (0):
+diagnostics (0):
+committable: true

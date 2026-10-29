@@ -6,7 +6,8 @@ enum SectionParsers {
 
     static func host(pattern: String, value: String, source: SourceReference, sink: inout DiagnosticSink) -> HostSpec? {
         let line = source.line
-        let normalizedPattern = pattern.lowercased()
+        // 与规则中的主机名一致：Unicode 标签转为 Punycode（通配标签 `*`、`?` 是 ASCII，不受影响）。
+        let normalizedPattern = Hostname(pattern)?.value ?? pattern.lowercased()
         guard ValueParser.isValidWildcard(normalizedPattern) else {
             sink.report(.cfgInvalidHost, line: line, arguments: [pattern], "Invalid [Host] pattern \(pattern)")
             return nil

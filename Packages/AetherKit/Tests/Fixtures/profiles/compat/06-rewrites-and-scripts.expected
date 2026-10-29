@@ -1,0 +1,16 @@
+profile: 06-rewrites-and-scripts.conf
+general: loglevel=notice dns-mode=fake-ip dns-server=["system"] encrypted=[] ipv6=false system-proxy=true mtu=1500 block-quic=auto fake-ip=198.18.0.0/15 skip-proxy=8 hijack=["*:53"]
+proxies (0):
+groups (0):
+rules (1):
+  #1 FINAL → DIRECT 
+hosts (0): 
+rewrites: url=4 header=3 body=1 map-local=3
+scripts (5): req:http-request, res:http-response, nightly:cron, net:event, tool:generic
+mitm: api.example.com, img.example.com, static.example.com
+resources (2):
+  map-local https://files.example.com/app.json interval=default
+  script https://scripts.example.com/res.js interval=86400
+diagnostics (1):
+  06-rewrites-and-scripts.conf:32: warning: CFG-062 Script res is defined more than once; this definition is ignored
+committable: true
