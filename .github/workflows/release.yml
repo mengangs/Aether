@@ -1,0 +1,124 @@
+# 发布构建（docs/03 §8.3–§8.4）：未签名 ipa + entitlements + 标识符清单 + dSYM。
+# 触发：推送 v* tag（同时创建 GitHub Release），或在 Actions 页面手动运行（只上传 workflow artifact）。
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration
+        type: choice
+        options: [Release, Debug]
+        default: Release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  XCODE_APP: /Applications/Xcode_27.1.app
+  CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+
+jobs:
+  build:
+    name: Unsigned ipa
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - id: hev
+        run: echo "rev=$(git -C Vendor/hev-socks5-tunnel rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache hev xcframework
+        uses: actions/cache@v6
+        with:
+          path: Packages/AetherKit/Binaries
+          key: hev-${{ steps.hev.outputs.rev }}-${{ hashFiles('Scripts/build-hev.sh') }}-${{ env.XCODE_APP }}
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Identifier overrides
+        # 仓库变量（Settings → Secrets and variables → Actions → Variables），未设置时使用通用默认值。
+        env:
+          AETHER_BUNDLE_ID_PREFIX: ${{ vars.AETHER_BUNDLE_ID_PREFIX }}
+          AETHER_TUNNEL_BUNDLE_ID: ${{ vars.AETHER_TUNNEL_BUNDLE_ID }}
+          AETHER_WIDGET_BUNDLE_ID: ${{ vars.AETHER_WIDGET_BUNDLE_ID }}
+          AETHER_APP_GROUP: ${{ vars.AETHER_APP_GROUP }}
+          AETHER_KEYCHAIN_GROUP: ${{ vars.AETHER_KEYCHAIN_GROUP }}
+          AETHER_TEAM_ID: ${{ vars.AETHER_TEAM_ID }}
+          AETHER_URL_SCHEME: ${{ vars.AETHER_URL_SCHEME }}
+        run: ./Scripts/write-ci-xcconfig.sh
+
+      - name: Generate project
+        run: ./Scripts/bootstrap.sh
+
+      - name: Check tag matches MARKETING_VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^MARKETING_VERSION *= *//p' Config/Version.xcconfig)
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match MARKETING_VERSION ${version}"
+            exit 1
+          fi
+
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Aether.xcodeproj -scheme Aether \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Aether.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD) \
+            | xcbeautify --renderer github-actions
+
+      - name: Package
+        run: ./Scripts/package-release.sh build/Aether.xcarchive build/release "$CONFIGURATION"
+
+      - name: Artifact name
+        id: name
+        run: echo "name=$(basename build/release/*-unsigned.ipa -unsigned.ipa)-${CONFIGURATION}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.name.outputs.name }}
+          path: build/release
+          if-no-files-found: error
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > build/notes.md
+          if [[ ! -s build/notes.md ]]; then
+            echo "::error::CHANGELOG.md has no section for ${version}"
+            exit 1
+          fi
+          cd build/release
+          zip -qr ../entitlements.zip entitlements
+          prerelease=""
+          [[ "$version" == 0.* ]] && prerelease="--prerelease"
+          gh release create "$GITHUB_REF_NAME" --title "Aether $GITHUB_REF_NAME" --notes-file ../notes.md $prerelease \
+            ./*.ipa ./*.zip ../entitlements.zip identifiers.json identifiers.txt

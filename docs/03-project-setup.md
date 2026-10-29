@@ -306,7 +306,7 @@ echo "Aether.xcodeproj generated."
 | `core.yml` | `ubuntu-latest` + Swift 6.x 官方容器 | push 到 main | `swift format lint --recursive`；`swift build`；`swift test --parallel`（跨平台模块） |
 | `interop.yml` | `ubuntu-latest` + Docker | 每日定时、手动；push 到 main 且改动涉及 `AetherOutbound` 或 `Scripts/interop/` | 启动 `Scripts/interop/` 中的测试服务端；运行 `swift test --filter Interop` |
 | `ios.yml` | `xcode-27`（备选 `macos-26`） | push 到 main | 恢复或构建 hev 缓存；`bootstrap.sh`；在 macOS 上 `swift test`（含 Apple 专有模块）；`xcodebuild build -scheme Aether -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` |
-| `release.yml` | `xcode-27` | 推送 `v*` tag | 见 §8.3 |
+| `release.yml` | `xcode-27` | 推送 `v*` tag、手动（`workflow_dispatch`） | 未签名 ipa 与附带文件，见 §8.3–§8.4 |
 
 `ios.yml` 的核心步骤：
 
@@ -372,14 +372,41 @@ Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runne
 
 ### 8.3 发布构建
 
-`release.yml` 在 tag 推送时：
+`release.yml` 有两种触发方式：推送 `v*` tag，或在 Actions 页面手动运行（`workflow_dispatch`，可选 Release / Debug 配置）。步骤：
 
-1. 与 `ios.yml` 相同的准备步骤，`-configuration Release`；
-2. `xcodebuild archive` 生成 `Aether.xcarchive`；
-3. 若仓库配置了签名机密（证书、描述文件、ExportOptions），用 `xcodebuild -exportArchive` 导出 `.ipa`；
-4. 未配置签名机密时，以 `CODE_SIGNING_ALLOWED=NO` 归档，并把归档内的 `Aether.app` 按标准结构（`Payload/Aether.app`）打包为 `.ipa`，供后续签名流程使用；
-5. 产物附带各 target 的 entitlements 文件与 `dSYM`，上传为 workflow artifact 并附到 GitHub Release；
-6. Release 说明取 `CHANGELOG.md` 对应节。
+1. 与 `ios.yml` 相同的准备步骤（hev 缓存、XcodeGen、标识符覆盖 §8.4）；tag 触发时检查 tag 与 `MARKETING_VERSION` 一致；
+2. `xcodebuild archive` 以 `CODE_SIGNING_ALLOWED=NO` 生成未签名的 `Aether.xcarchive`，`CURRENT_PROJECT_VERSION` 取提交计数；
+3. `Scripts/package-release.sh` 打包产物：
+   - `Aether-<版本>-<构建号>-unsigned.ipa`：标准结构 `Payload/Aether.app`（含 `PlugIns/AetherTunnel.appex`），未签名；
+   - `entitlements/Aether.entitlements`、`entitlements/AetherTunnel.entitlements`：各 target 的 entitlements，`$(AETHER_*)` 已按本次构建的设置展开；
+   - `identifiers.json` / `identifiers.txt`：标识符清单（版本、提交、Team ID、各 Bundle ID、App Group、Keychain 访问组、URL Scheme）；
+   - `Aether-<版本>-<构建号>-dSYMs.zip`；
+   - 打包后自检 ipa 结构，并检查扩展 Bundle ID 与 App 中记录的一致；
+4. 产物上传为 workflow artifact；tag 触发时另外创建 GitHub Release（`0.x` 标为 pre-release），说明取 `CHANGELOG.md` 对应节。
+
+项目不在 CI 中保存签名机密，发布产物一律是未签名 ipa，由使用者按 §8.4 自行签名。
+
+### 8.4 自行签名
+
+未签名 ipa 要能在重签后直接使用，工程与代码遵守以下要求：
+
+1. **标识符可由仓库变量覆盖**。仓库中只保留通用默认值（§3.1）。在 GitHub 仓库 Settings → Secrets and variables → Actions → **Variables** 中设置以下变量，`ios.yml` 与 `release.yml` 通过 `Scripts/write-ci-xcconfig.sh` 生成 `Config/CI.xcconfig` 覆盖默认值；未设置的变量沿用默认值：
+
+   | 变量 | 含义 | 默认值 |
+   | --- | --- | --- |
+   | `AETHER_BUNDLE_ID_PREFIX` | 主 App 的 Bundle ID（兼作日志、通知名等的前缀） | `com.example.aether` |
+   | `AETHER_TUNNEL_BUNDLE_ID` | 隧道扩展的 Bundle ID | `<前缀>.tunnel` |
+   | `AETHER_WIDGET_BUNDLE_ID` | 小组件扩展的 Bundle ID（M4 起使用） | `<前缀>.widget` |
+   | `AETHER_APP_GROUP` | App Group | `group.<前缀>` |
+   | `AETHER_KEYCHAIN_GROUP` | Keychain 访问组（完整值，含 Team ID 前缀） | `<Team ID>.<前缀>.shared` |
+   | `AETHER_TEAM_ID` | Team ID | 空 |
+   | `AETHER_URL_SCHEME` | URL Scheme | `aether` |
+
+   变量值只允许字母、数字、`.` 与 `-`。扩展的 Bundle ID 必须以主 App 的 Bundle ID 加 `.` 开头（iOS 安装要求）。
+2. **Keychain 访问组显式拼出**。未签名构建时 `$(AppIdentifierPrefix)` 为空，所以访问组用 `AETHER_TEAM_ID` 拼出。运行时再探测一次实际前缀：写入一个不指定访问组的临时 Keychain 项，读回系统赋予的 `kSecAttrAccessGroup`，取其第一个 `.` 之前的部分作为实际 Team ID 前缀；与 Info.plist 中的访问组前缀不一致时以探测结果为准（保留其余部分），并写日志（见 §3.2）。
+3. **能力缺失时优雅降级**（§3.3）：缺 `wifi-info` 时 SSID 不可用；App Group 不可用时显示明确的错误页（`STO-001`）；均不得崩溃。
+4. **entitlements 只声明实际需要的值**（§3.3），`networkextension` 只写 `packet-tunnel-provider`。描述文件需要包含对应能力：Network Extensions（Packet Tunnel）、App Groups、Keychain Sharing、Access Wi-Fi Information。
+5. **发布产物附带签名所需信息**（§8.3）：App 与 Tunnel 的 entitlements 文件、标识符清单。重签时先用 `AetherTunnel.entitlements` 签 `Payload/Aether.app/PlugIns/AetherTunnel.appex`，再用 `Aether.entitlements` 签 `Payload/Aether.app`；两者的 Bundle ID、App Group、Keychain 访问组应与 `identifiers.txt` 一致。
 
 ## 9. 代码规范
 
