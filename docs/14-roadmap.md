@@ -24,7 +24,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
 | [x] | M0-01 | 仓库初始化：目录结构、`.gitignore`、`.swift-format`、`CHANGELOG.md`、文档与示例就位 | 03 §1、§9 | 结构与 03 §1 一致 |
-| [ ] | M0-02 | `AetherKit` 包骨架：全部模块的空壳与占位测试、平台条件声明 | 02 §3、03 §5.4 | Linux 与 macOS 上 `swift build` / `swift test` 通过 |
+| [~] | M0-02 | `AetherKit` 包骨架：全部模块的空壳与占位测试、平台条件声明 | 02 §3、03 §5.4 | Linux 与 macOS 上 `swift build` / `swift test` 通过 |
 | [ ] | M0-03 | Vendored C 库：hev submodule、`build-hev.sh`、模块映射；BLAKE3 源码与 `CBlake3` | 03 §6 | xcframework 可生成；BLAKE3 官方测试向量通过 |
 | [ ] | M0-04 | XcodeGen 工程：`project.yml`、xcconfig、Info.plist、entitlements、隐私清单；App 与 Tunnel target；`bootstrap.sh` | 03 §3、§4 | `xcodebuild build` 成功 |
 | [ ] | M0-05 | CI：`core.yml`、`ios.yml` | 03 §7 | 两个工作流在推送 `main` 时运行并通过 |

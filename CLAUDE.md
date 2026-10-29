@@ -24,7 +24,10 @@ Aether：iOS 上基于规则的网络代理客户端（Packet Tunnel + 自研 Sw
 cd Packages/AetherKit
 swift build
 swift test --parallel
-swift format lint --recursive Sources Tests
+swift format lint --strict --recursive Sources Tests
+
+# 架构约束（依赖方向、跨平台模块禁止的 import、App 不得依赖引擎），在仓库根目录运行
+swift Scripts/check-architecture.swift .
 
 # 开发调试 CLI
 swift run aether-cli check ../../examples/full.conf

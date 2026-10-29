@@ -435,7 +435,8 @@ Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runne
 
 ## 9. 代码规范
 
-- 格式：仓库根目录 `.swift-format`（4 空格缩进，行宽 120）。CI 中 lint 失败即失败。
+- 格式：仓库根目录 `.swift-format`（4 空格缩进，行宽 120）。CI 以 `swift format lint --strict` 检查，lint 失败即失败；提交前可用 `swift format format -i --recursive Sources Tests` 自动修正。
+- 架构约束：`Scripts/check-architecture.swift` 检查模块依赖方向（02 §3.2）、跨平台模块禁止的 import，以及 `project.yml` 中 App / 小组件不得依赖引擎相关模块；CI 在 Linux 与 macOS 上都运行它。新增模块时同时更新该脚本中的依赖图与 02 §3。
 - 命名：类型 `UpperCamelCase`，协议描述能力（`OutboundConnector`、`ScriptRuntime`）；配置关键字与诊断码保持原文大小写。
 - 访问控制：模块对外只暴露必要类型，默认 `internal`；跨模块 API 写文档注释。
 - 禁止：`print`、`fatalError` / `try!` / 强制解包出现在数据面代码中（测试代码除外）；在 EventLoop 上阻塞；无上限的缓冲或集合；硬编码标识符；Apple 私有 API。
