@@ -36,6 +36,18 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 
 目标：配置的解析、校验、模块叠加、编辑与规则引擎完整可用，不涉及网络。
 
+计划（2026-10-29）：
+
+- 顺序：按编号 M1-01 → M1-11。M1-07 通过 `RuleResourceProvider` 协议接入规则集，M1-08 再提供解析器、内置 `LAN` 与编译缓存。
+- `AetherFoundation`（M1-01）：`IPAddress`（v4 用 `UInt32`、v6 用两个 `UInt64`，IPv4 映射地址可互转）、`CIDR`、`Hostname`（ASCII 小写、去末尾点、按标签转 Punycode，保留原拼写）、`Endpoint`、有上限的 `LRUCache`、字节工具；Punycode 按 RFC 3492 实现并通过 RFC §7.1 全部示例。IDNA 映射只做 Unicode 小写化，不实现完整 UTS #46（在 05 §3.3 注明）。
+- `AetherProfile`（M1-02–M1-06）：逐行无损的 `ProfileDocument`（BOM、CRLF、注释、未知内容原样保留）；带引号与括号深度的字段分词器；各节解析为 Spec 类型并产出诊断（04 §13 全部诊断码）；语义校验；模块元数据、参数替换与叠加；`ResolvedProfile.revision` 为全部源文本与参数的 SHA-256，用 swift-crypto 计算（依赖表中已登记的包，此时引入并把 `AetherProfile` 加入其使用模块）。正则一律用 `NSRegularExpression`（ICU 语法，Linux 与 Apple 一致）。
+- 模糊测试：解析器提供固定种子的变异模糊测试（在 `swift test` 中运行，CI 每次推送执行），保证任意输入不崩溃、不死循环，且未修改的文档渲染与输入逐字节一致。
+- `AetherRules`（M1-07–M1-08）：`RouteContext` / `RuleProgram` / `RuleStep` 按 05 §1–§2；分块编译（域名哈希表、排序反转域名表、关键字线性或 Aho-Corasick、IP 区间表）；`needsResolution` 续算；追踪模式；4096 条 LRU 决策缓存；块模式与逐条模式一致性的属性测试（固定种子）。
+- `aether-cli`（M1-09）：`check`、`match`、`render --redact`；输出稳定，用黄金文件测试。
+- M1-10：`Tests/Fixtures/profiles/compat/` 下 ≥ 10 份风格各异的配置及期望诊断与解析摘要。
+- M1-11：不引入基准测试框架（避免新依赖），新增可执行目标 `aether-bench`，Release 构建运行，结果写入 CI 摘要。
+- 版本：`MARKETING_VERSION` 改为 0.2.0；M1 结束时 tag `v0.2.0`。M1 没有真机验收行（13 §6 中无 M1 项），检查点只做 13 §7 自查。
+
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
 | [ ] | M1-01 | `AetherFoundation`：`IPAddress`、`CIDR`、`Hostname`（规范化、Punycode）、`Endpoint`、LRU、错误协议、字节工具 | 02 §3、05 §3.3 | RFC 3492 Punycode 示例通过 |
