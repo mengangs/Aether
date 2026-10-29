@@ -666,7 +666,8 @@ public struct ResolvedProfile: Sendable {
 
 - 表单编辑通过 `ProfileDocument` 上的操作完成（如 `updateEntry(id:newValue:)`、`insertEntry(in:after:raw:)`、`removeEntry(id:)`、`moveEntry`），只改动目标行；新增行使用规范格式（`键 = 值`、`字段, 字段`）。
 - 未修改的文档 `render()` 与输入逐字节一致；这条由往返测试覆盖全部 fixtures。
-- 脱敏渲染替换以下值为 `******`：`password`、位置字段中的密码、`username`（UUID 类协议）、`uuid`、`token`、`ca-p12`、`ca-passphrase`、`http-api` 中的密钥、`policy-path` 与 `#!MANAGED-CONFIG` URL 的查询串。
+- 脱敏渲染替换以下值为 `******`：`password`、位置字段中的密码、`username`（UUID 类协议）、`uuid`、`token`、`psk`、`private-key`、`preshared-key`、`ca-p12`、`ca-passphrase`、`http-api` 中的密钥、`policy-path` 与 `#!MANAGED-CONFIG` URL 的查询串（保留 `#` 片段）。只替换值所在的字符范围，缩进、空白、注释与行结构保持原样；`[Proxy]` 条目无法分词（如引号未闭合）时整体遮盖其值，宁可多遮。UUID 类节点脱敏后不再是合法配置，这是预期的。
+- 编辑实现（`ProfileDocument+Editing`）：`updateEntry` 保留行首缩进与 `键 =` 的原样书写；`insertEntry` 在目标节最后一行内容之后插入，节不存在时在文末追加空行与规范拼写的节标题；`moveEntry` 只在同一节内移动；新行使用文档的主要换行风格；文档原本是否以换行结尾在任何编辑后保持不变；行 ID 不变，行号重新编号。
 
 ### 15.3 性能
 
