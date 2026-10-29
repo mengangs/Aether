@@ -1,0 +1,23 @@
+#!name=示例模块
+#!desc=演示模块的元数据、参数替换与叠加语法
+#!author=Aether
+#!homepage=https://example.com/aether
+#!category=示例
+#!arguments=policy:Proxy,debug:false
+#!arguments-desc=policy：示例域名使用的策略；debug：是否开启脚本调试
+
+[General]
+always-real-ip = %APPEND% *.example-game.com
+
+[Rule]
+DOMAIN-SUFFIX,example.org,{{{policy}}}
+URL-REGEX,"^https://api\.example\.org/track",REJECT
+
+[URL Rewrite]
+^https://api\.example\.org/ad/ - reject-dict
+
+[Script]
+example-module-script = type=http-response, pattern=^https://api\.example\.org/v1/, requires-body=true, script-path=https://scripts.example.com/module.js, debug={{{debug}}}
+
+[MITM]
+hostname = %APPEND% api.example.org
