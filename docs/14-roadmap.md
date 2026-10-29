@@ -66,6 +66,22 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 
 目标：第一个真机日常可用版本——全流量接管，DIRECT / REJECT / HTTP / SOCKS5 节点，规则分流，手动选择组。
 
+计划（2026-10-29）：
+
+- 顺序：M2-01 → M2-02 → M2-03 → M2-04 → M2-06 → M2-05 → M2-07 → M2-08 → M2-12 → M2-09 → M2-10 → M2-11 → M2-13。出站（M2-06）提前到 `Router`（M2-05）之前，使路由的集成测试能覆盖真实的拨号步骤；统计数据库（M2-12）提前到隧道生命周期（M2-10）之前，因为停止流程要落盘统计与日志簿。
+- 依赖：按 03 §5.1 在首次使用的任务中引入 swift-nio（M2-01；同时带入其依赖 swift-atomics、swift-collections）、swift-nio-ssl（M2-06，TLS 传输）、GRDB（M2-12），实际版本填入依赖表。swift-nio-extras、swift-nio-http2 不在 M2 引入。
+- 数据面全部在 1 个 EventLoop 线程上，以 ChannelHandler 管线 + 胶水 Handler 双向转发（02 §7）；控制面（运行配置编译、IPC、持久化）用 `actor`。新流读取通过锁保护的当前 `RuntimeConfiguration` 引用，已有流持有自己的引用直到结束。
+- `AetherDNS`（M2-02）：`DNSMessage` 编解码（名称压缩、指针环保护、EDNS 透传、A / AAAA / CNAME / PTR / SOA / HTTPS / SVCB 结构化）、`FakeIPPool`（LRU 回收、`fakeip.bin` 往返）、`HostTable`、`DNSCache`（TTL 上下限、否定缓存、在途合并）、`ReverseTable`、UDP 上游（超时、重试、截断转 TCP）、`system` 上游（服务器列表由平台注入：隧道用 libresolv，Linux 的 `aether-cli` 读 `/etc/resolv.conf`）、并发上游组、`DNSService` 门面；时间通过注入的时钟控制。DNS 报文编解码加入 `aether-bench`。
+- `AetherOutbound`（M2-06）：`OutboundConnector` / `Destination` / `DialContext` 按 06 §8.1；连接器的配置类型由本模块定义，`AetherEngine` 把 `ProxySpec` 转换过来（`AetherOutbound` 不依赖 `AetherProfile`）。DIRECT 以 NIO 的 Happy Eyeballs 拨号，解析经注入的 `ServerAddressResolver`；NAT64 合成经注入的合成器（Apple 平台为线程池中的 `getaddrinfo`）。
+- `AetherEngine`：`FlowManager` 与胶水 Handler（M2-01）、内部 SOCKS5 入站（M2-03，认证成功即回复，以便嗅探首包）、HTTP 代理入站（M2-04，明文绝对形式请求由 `AetherHTTP` 中的最小 HTTP/1 转发实现，完整管线在 M5）、`Router` 与嗅探（M2-05）、`PolicyRegistry` 与运行配置热替换（M2-07；`url-test` / `fallback` / `load-balance` 在 M3-07 之前解析到第一个成员并在 `listPolicies` 中如实标注）、UDP 关联与 NAT 表（M2-08）、`aether-cli run`（13 §4）。
+- 运行包：配置库（`Profiles/index.json`）、模块库与运行包提交（11 §3.1、§6）放在 `AetherProfile`（只依赖 Foundation，路径由调用方传入），App 与引擎共用并可在 Linux 上测试；`runtime.json`、`selections.json`、`RequestRecord` 等跨进程模型放在 `AetherIPC`。
+- `AetherStore`（M2-12）：GRDB `DatabasePool`；迁移 `v1_initial` 一次建出 11 §4.1 的全部表（迁移只追加，后续里程碑直接使用）；M2 写 `traffic_daily` 与 `logbook`，并实现 11 §4.2 的清理。
+- `AetherTunnelSupport`（M2-09、M2-10）：完整网络设置、utun 描述符查找（`ctl_info` / `sockaddr_ctl` 按内核 ABI 在 Swift 中声明）与备用 socketpair 桥接、hev 配置与线程、`NWPathMonitor` 与 SSID、libresolv 系统 DNS、`RLIMIT_NOFILE`、内存压力源、Darwin 通知、状态快照。
+- App（M2-11）：五个标签的骨架；首页（连接、出站模式、流量、常用组）、策略页（select）、请求列表与基础详情、配置页（URL / 文件导入、提交运行包）、诊断页；每个页面带 `MockTunnelClient` 的 `#Preview`（含空状态与错误状态）。
+- 测试：集成测试在进程内启动引擎（NIOPosix），上游是测试里启动的本地 HTTP / SOCKS5 / HTTP CONNECT / DNS 服务，全部只用回环地址，不访问公网。
+- M2-13：V02–V12 写成 13 §6.1 的验收步骤，标"待验证"；hev 参数保持 06 §4.2 的初值，待真机压测（V10）后回填。
+- 版本：`MARKETING_VERSION` 改为 0.3.0；M2 结束时 tag `v0.3.0`。
+
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
 | [ ] | M2-01 | NIO 基础：EventLoopGroup 管理、胶水 Handler（背压、半关闭、计数）、`FlowManager`、超时 | 06 §6.1、§13 | 慢速消费者下内存不增长的测试 |
