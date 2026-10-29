@@ -1,5 +1,3 @@
-import AetherFoundation
-
 /// 规则（docs/04 §7）。逻辑规则递归持有子规则；子规则与规则集内规则没有策略。
 public struct RuleSpec: Sendable, Equatable {
     public var condition: RuleCondition

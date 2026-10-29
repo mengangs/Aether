@@ -30,6 +30,15 @@ public struct RuleMatch: Sendable {
 
 `evaluate` 是同步、无副作用、不分配大对象的纯函数，可以在 EventLoop 上直接调用。需要 DNS 时返回 `needsResolution`，由引擎异步解析后把结果写入上下文、从 `resume` 继续。
 
+实现说明（M1-07）：
+
+- 规则词汇类型（`RuleSpec`、`RuleCondition`、`RuleOptions`、`SourceReference` 等）放在 `AetherFoundation`：`AetherProfile` 产出它们，`AetherRules` 编译它们，两者互不依赖，保持 02 §3.2 的依赖方向。
+- `RuleCursor` 带 `afterResolution` 标记，续算得到的 `RuleMatch.usedResolution` 据此为 true（即使需要 IP 的规则是第一条）。
+- 单条规则的判定结果为 `RuleOutcome`：`match` / `noMatch` / `needsIP` / `undecidable(原因)`。判定时考虑"能否解析"（有主机名、尚无 IP、尚未失败、规则未带 `no-resolve`）：不能解析时 IP 类规则直接为不命中，因此 `NOT,((IP-CIDR,…))` 在只有 IP 字面量时也能正确判定。
+- 数据库未加载时 `GEOIP` / `IP-ASN` 直接为不可判定，不会为它们发起解析。
+- 规则集以 `RuleSetMatching` 协议接入（`CompiledRuleSet` 为实现：域名类合并为一个索引、IP 类合并为区间表、其余逐条）；未加载的规则集与域名集为不可判定。
+- 决策缓存为 `RuleDecisionCache`（非线程安全，每个 EventLoop 一个），经 `evaluate(_:cache:)` 使用；键在 §4.3 基础上加入目标 IP（存在时），因为同一主机名的上下文可能带不同的 IP。
+
 ## 2. 匹配输入
 
 ```swift

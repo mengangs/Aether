@@ -52,7 +52,7 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 
 | 模块 | 平台 | 主要依赖 | 职责 |
 | --- | --- | --- | --- |
-| `AetherFoundation` | 全部 | swift-log、swift-collections | 基础类型：`IPAddress`、`CIDR`、`Endpoint`、`Hostname`、LRU、错误码、日志工具、字节工具 |
+| `AetherFoundation` | 全部 | swift-log、swift-collections | 基础类型：`IPAddress`、`CIDR`、`Endpoint`、`Hostname`、LRU、错误码、日志工具、字节工具、cron 表达式；规则词汇类型 `RuleSpec` / `RuleCondition`（由 `AetherProfile` 产出、`AetherRules` 编译，见 05 §1） |
 | `AetherProfile` | 全部 | Yams | 配置的无损解析、类型化模型、模块叠加、校验与诊断、订阅与节点格式导入 |
 | `AetherRules` | 全部 | — | 规则编译与匹配、规则集与域名集、MMDB 读取器 |
 | `AetherDNS` | 全部 | swift-nio | DNS 报文编解码、上游客户端、缓存、Fake IP 池、Host 映射 |

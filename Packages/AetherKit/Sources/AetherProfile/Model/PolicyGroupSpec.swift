@@ -1,3 +1,5 @@
+import AetherFoundation
+
 /// `[Proxy Group]` 条目（docs/04 §6）。
 public struct PolicyGroupSpec: Sendable, Equatable {
     public enum GroupType: String, Sendable, Equatable, CaseIterable {
