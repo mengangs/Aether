@@ -7,8 +7,9 @@ LOG="$(mktemp)"
 "$@" 2>&1 | tee "${LOG}"
 rc=${PIPESTATUS[0]}
 if [[ ${rc} -ne 0 ]]; then
-    grep -E "error:|warning: .*(Sendable|concurrency)|✘|Test .* failed|Fatal error|fatal error" "${LOG}" \
-        | grep -v -E "^error: (fatalError|Build failed)$" \
+    sed -E 's/\x1b\[[0-9;]*m//g' "${LOG}" \
+        | grep -E "error:|warning: .*(Sendable|concurrency)|✘|Test .* failed|Fatal error|fatal error" \
+        | grep -v -E "^error: (fatalError|Build failed)$|^[[:space:]]*\|" \
         | awk '!seen[$0]++' \
         | head -40 \
         | while IFS= read -r line; do

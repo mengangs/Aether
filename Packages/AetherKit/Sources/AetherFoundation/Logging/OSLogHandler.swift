@@ -4,8 +4,8 @@
 
     /// 写入 `os.Logger` 的处理器（docs/02 §8.2）。消息在进入日志前已按脱敏规则处理，因此以 public 方式记录。
     public struct OSLogHandler: LogHandler {
-        public var metadata: Logger.Metadata = [:]
-        public var metadataProvider: Logger.MetadataProvider?
+        public var metadata: Logging.Logger.Metadata = [:]
+        public var metadataProvider: Logging.Logger.MetadataProvider?
 
         private let logger: os.Logger
         private let levelControl: LogLevelControl

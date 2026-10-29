@@ -202,7 +202,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 
 ### 5.1 Swift 包
 
-全部使用最新稳定主版本，`Package.resolved` 入库锁定。首次引入时把实际版本填入下表。
+全部使用最新稳定主版本，`Packages/AetherKit/Package.resolved` 入库锁定。Xcode 不读取本地包自己的 `Package.resolved`，`bootstrap.sh` 在生成工程后把它拷贝到 `Aether.xcodeproj` 的 workspace 中，保证 App 与 `swift test` 使用同一组版本。首次引入时把实际版本填入下表。
 
 | 包 | 许可证 | 使用模块 | 用途 | 版本 |
 | --- | --- | --- | --- | --- |
