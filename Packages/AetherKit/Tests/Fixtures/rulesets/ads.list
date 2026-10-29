@@ -1,0 +1,17 @@
+# 广告规则集（测试用）
+DOMAIN-SUFFIX,ads.example.com
+DOMAIN,tracker.example.net
+DOMAIN-KEYWORD,adserver
+DOMAIN-WILDCARD,banner?.example.org
+IP-CIDR,203.0.113.0/24,no-resolve
+IP-CIDR6,2001:db8:ad::/48
+AND,((DOMAIN-SUFFIX,example.net),(DEST-PORT,8443))
+URL-REGEX,"^https?://[^/]+/ads/"
+USER-AGENT,AdAgent*
+// 以下各行应被跳过
+PROCESS-NAME,SomeApp
+RULE-SET,https://rules.example.com/nested.list
+FINAL,DIRECT
+IP-CIDR,999.0.0.0/8
+NOT-A-RULE,value
+

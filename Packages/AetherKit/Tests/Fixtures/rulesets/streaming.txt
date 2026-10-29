@@ -1,0 +1,8 @@
+# 域名集（测试用）
+.stream.example.com
+video.example.net
++.cdn.example.org
+
+not a domain
+..bad
+例子.测试

@@ -52,6 +52,22 @@ public struct IntervalTable<Bound: IntervalBound>: Sendable {
 
     public var segmentCount: Int { starts.count }
 
+    /// 由编译缓存中的段恢复；段未排序、重叠或数组长度不一致时返回 nil。
+    init?(starts: [Bound], ends: [Bound], values: [Int32]) {
+        guard starts.count == ends.count, ends.count == values.count else { return nil }
+        for index in starts.indices {
+            guard starts[index] <= ends[index] else { return nil }
+            if index > 0, starts[index] <= ends[index - 1] { return nil }
+        }
+        self.starts = starts
+        self.ends = ends
+        self.values = values
+    }
+
+    var segments: [(start: Bound, end: Bound, value: Int32)] {
+        starts.indices.map { (starts[$0], ends[$0], values[$0]) }
+    }
+
     public init(_ intervals: [(lower: Bound, upper: Bound, value: Int)]) {
         let sorted = intervals.filter { $0.lower <= $0.upper }.sorted { $0.lower < $1.lower }
         // 边界点：每个区间的起点与终点的后继。相邻边界点之间（含起点、不含下一点）覆盖集合不变。

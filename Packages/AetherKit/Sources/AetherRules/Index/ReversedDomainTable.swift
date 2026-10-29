@@ -20,6 +20,27 @@ public struct ReversedDomainTable: Sendable {
 
     public init() {}
 
+    /// 由编译缓存中的原始数组恢复；数组不一致或键未排序时返回 nil。
+    init?(buffer: [UInt8], offsets: [UInt32], entries: [Entry]) {
+        guard offsets.count == entries.count else { return nil }
+        var previous: ArraySlice<UInt8>?
+        for (index, offset) in offsets.enumerated() {
+            let start = Int(offset)
+            let end = index + 1 < offsets.count ? Int(offsets[index + 1]) : buffer.count
+            guard start <= end, end <= buffer.count else { return nil }
+            let key = buffer[start..<end]
+            if let previous, !previous.lexicographicallyPrecedes(key) { return nil }
+            previous = key
+        }
+        self.buffer = buffer
+        self.offsets = offsets
+        self.entries = entries
+    }
+
+    var rawBuffer: [UInt8] { buffer }
+    var rawOffsets: [UInt32] { offsets }
+    var rawEntries: [Entry] { entries }
+
     /// 构建器：收集 `(域名, 是否后缀, 值)`，同键同类保留最小值。
     public struct Builder {
         private var items: [String: Entry] = [:]

@@ -145,3 +145,9 @@ public indirect enum RuleCondition: Sendable, Equatable {
         }
     }
 }
+
+// 编译缓存（docs/05 §6.4）需要的 Codable；合成实现必须与类型声明在同一文件中。
+extension RuleSpec: Codable {}
+extension RuleOptions: Codable {}
+extension RuleCondition: Codable {}
+extension SubnetCondition: Codable {}

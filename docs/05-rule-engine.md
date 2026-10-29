@@ -183,6 +183,7 @@ AND,((DOMAIN-SUFFIX,example.net),(DEST-PORT,443))
 - 不支持的类型（如 `PROCESS-NAME`）跳过并计数，不使整个规则集失败。
 - 规则集内规则的相对顺序无意义（任一命中即命中），因此编译时可以把同类规则全部合并为一个索引。
 - 引用时写在 `RULE-SET` 上的 `no-resolve` 作用于集内全部 IP 类规则。
+- 规则集文本由 `AetherProfile.RuleSetParser` 解析（与 `[Rule]` 同一套规则语法），再由 `AetherRules.CompiledRuleSet` 编译；`FINAL` / `MATCH` 与 `RULE-SET`、`DOMAIN-SET` 一样计为"不允许"。
 
 ### 6.2 域名集格式
 
@@ -191,6 +192,7 @@ AND,((DOMAIN-SUFFIX,example.net),(DEST-PORT,443))
 - `.example.com`：匹配 `example.com` 自身及其全部子域名；
 - `example.com`：只匹配 `example.com`；
 - `#` 开头为注释；空行忽略；无效行跳过并计数。
+- 兼容 `+.example.com` 写法，等同于 `.example.com`。解析与编译在 `AetherRules.DomainSetLoader`。
 
 ### 6.3 内置规则集 `LAN`
 
@@ -213,11 +215,15 @@ DOMAIN-SUFFIX,local
 HOSTNAME-TYPE,SIMPLE
 ```
 
+其中的 IP 规则按 `no-resolve` 处理：`RULE-SET,LAN,DIRECT` 通常是第一条规则，若为它解析，每个只有域名的流都要先做一次真实 DNS 查询，Fake IP 模式就失去意义。局域网目标经 `DOMAIN-SUFFIX,local`、`HOSTNAME-TYPE,SIMPLE` 命中，或因 `always-real-ip`（`*.lan`、`*.local` 等）返回真实地址而带着 IP 到达引擎。
+
 ### 6.4 加载与缓存
 
 - 远程规则集与域名集是外部资源，下载、缓存与更新见 [11 §5](11-storage.md#5-外部资源)。
 - 大小上限 32 MiB（解压后），条目上限 50 万；超限时拒绝加载并记录错误。
 - 编译缓存文件 `Resources/<资源哈希>.ruleset.bin`：文件头含魔数、格式版本、源内容 SHA-256；任何一项不符即丢弃重建。格式版本在数据结构变化时递增。
+- 当前格式（`RuleCompileCache`，版本 1）：魔数 `AERS`（规则集）/ `AEDS`（域名集），小端；规则集依次保存精确域名表、反转域名表的原始缓冲与偏移、关键字、通配、IPv4 / IPv6 区间表的段，以及其余规则的 JSON（键排序，编码结果确定）；域名集只保存反转域名表。解码时检查全部长度、越界与键的排序，任何不一致都返回 nil。
+- 超限返回 `RES-010`，没有有效条目返回 `RES-011`（[11 §9](11-storage.md#9-错误码)）。
 
 ## 7. GeoIP 与 ASN
 

@@ -245,9 +245,28 @@ public struct CompiledRuleSet: RuleSetMatching {
     let domains: DomainIndex
     let ips: IPIndex
     let others: [CompiledRule]
+    /// 编译 `others` 用的源规则（写入编译缓存）。
+    let otherSpecs: [RuleSpec]
     let hasIPRules: Bool
+    /// 是否有不带 no-resolve 的 IP 规则（只有这些规则会为只有域名的流请求解析）。
+    let hasResolvableIPRules: Bool
     public let ruleCount: Int
     public let dependsOnRequestDetails: Bool
+
+    init(
+        domains: DomainIndex, ips: IPIndex, otherSpecs: [RuleSpec], hasIPRules: Bool, hasResolvableIPRules: Bool,
+        ruleCount: Int, resources: some RuleResourceProvider, platform: PlatformCapabilities
+    ) {
+        let compiler = RuleCompiler(resources: resources, platform: platform)
+        self.domains = domains
+        self.ips = ips
+        self.otherSpecs = otherSpecs
+        others = otherSpecs.enumerated().map { compiler.compile($0.element, index: $0.offset) }
+        self.hasIPRules = hasIPRules
+        self.hasResolvableIPRules = hasResolvableIPRules
+        self.ruleCount = ruleCount
+        dependsOnRequestDetails = others.contains(where: \.dependsOnRequestDetails)
+    }
 
     /// - Parameter rules: 规则集文件中解析出的规则（不带策略）。不允许的类型（规则集、域名集、FINAL）由解析阶段排除。
     public init(
@@ -260,7 +279,9 @@ public struct CompiledRuleSet: RuleSetMatching {
         let ipRules = compiled.filter { $0.category == .ip }
         ips = IPIndex(ipRules[...])
         hasIPRules = !ipRules.isEmpty
+        hasResolvableIPRules = ipRules.contains { !$0.options.noResolve }
         others = compiled.filter { $0.category == .single }
+        otherSpecs = zip(rules, compiled).filter { $0.1.category == .single }.map(\.0)
         ruleCount = rules.count
         dependsOnRequestDetails = compiled.contains(where: \.dependsOnRequestDetails)
     }
@@ -271,7 +292,7 @@ public struct CompiledRuleSet: RuleSetMatching {
         var needsIP = false
         if let ip = context.destinationIP {
             if ips.match(ip) != nil { return .match }
-        } else if hasIPRules, canResolve {
+        } else if hasResolvableIPRules, canResolve {
             needsIP = true
         }
         for rule in others {
@@ -285,9 +306,9 @@ public struct CompiledRuleSet: RuleSetMatching {
     }
 }
 
-/// 内置规则集（docs/05 §6.3）。M1-08 填充 `LAN`。
+/// 内置规则集（docs/05 §6.3）。
 enum BuiltinRuleSets {
     static func named(_ location: String) -> (any RuleSetMatching)? {
-        nil
+        location.uppercased() == "LAN" ? lan : nil
     }
 }

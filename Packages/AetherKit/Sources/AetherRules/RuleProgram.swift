@@ -289,6 +289,16 @@ struct DomainIndex: Sendable {
     let keywords: KeywordMatcher
     let wildcards: [(pattern: String, index: Int)]
 
+    init(
+        exact: [String: Int], suffix: ReversedDomainTable, keywords: KeywordMatcher,
+        wildcards: [(pattern: String, index: Int)]
+    ) {
+        self.exact = exact
+        self.suffix = suffix
+        self.keywords = keywords
+        self.wildcards = wildcards
+    }
+
     init(_ rules: ArraySlice<CompiledRule>) {
         var exact: [String: Int] = [:]
         var suffix = ReversedDomainTable.Builder()
@@ -326,6 +336,11 @@ struct DomainIndex: Sendable {
 struct IPIndex: Sendable {
     let v4: IntervalTable<UInt32>
     let v6: IntervalTable<UInt128Value>
+
+    init(v4: IntervalTable<UInt32>, v6: IntervalTable<UInt128Value>) {
+        self.v4 = v4
+        self.v6 = v6
+    }
 
     init(_ rules: ArraySlice<CompiledRule>) {
         var v4: [(UInt32, UInt32, Int)] = []

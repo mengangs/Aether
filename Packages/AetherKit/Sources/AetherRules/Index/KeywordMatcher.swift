@@ -9,9 +9,12 @@ public struct KeywordMatcher: Sendable {
 
     private let storage: Storage
     public let count: Int
+    /// 原始关键字（写入编译缓存）。
+    let keywords: [(keyword: String, value: Int)]
 
     public init(_ keywords: [(keyword: String, value: Int)]) {
         count = keywords.count
+        self.keywords = keywords
         if keywords.count <= Self.linearLimit {
             storage = .linear(keywords.map { (Array($0.keyword.utf8), $0.value) })
         } else {
