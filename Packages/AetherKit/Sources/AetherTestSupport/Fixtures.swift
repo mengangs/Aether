@@ -11,6 +11,32 @@ public enum Fixtures {
         .deletingLastPathComponent()  // AetherKit
         .appendingPathComponent("Tests/Fixtures", isDirectory: true)
 
+    /// 仓库根目录下的 `examples/`。
+    public static let examples: URL =
+        root
+        .deletingLastPathComponent()  // Tests
+        .deletingLastPathComponent()  // AetherKit
+        .deletingLastPathComponent()  // Packages
+        .deletingLastPathComponent()  // 仓库根目录
+        .appendingPathComponent("examples", isDirectory: true)
+
+    /// 递归列出 `Tests/Fixtures/<directory>` 下扩展名匹配的文件（按路径排序）。
+    public static func files(in directory: String, extensions: Set<String>) -> [URL] {
+        files(under: root.appendingPathComponent(directory), extensions: extensions)
+    }
+
+    /// 递归列出目录下扩展名匹配的文件（按路径排序）。
+    public static func files(under directory: URL, extensions: Set<String>) -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var result: [URL] = []
+        for case let url as URL in enumerator where extensions.contains(url.pathExtension) {
+            result.append(url)
+        }
+        return result.sorted { $0.path < $1.path }
+    }
+
     /// 相对 `Tests/Fixtures` 的文件地址，如 `vectors/blake3/test_vectors.json`。
     public static func url(_ relativePath: String) -> URL {
         root.appendingPathComponent(relativePath)

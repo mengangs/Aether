@@ -591,7 +591,7 @@ YAML `proxies` 字段映射：
 /// 无损语法树：保留每一行的原文、位置和分类。
 public struct ProfileDocument: Sendable {
     public var lines: [ProfileLine]                 // 全部行，按原顺序
-    public var lineEnding: LineEnding               // .lf / .crlf
+    public var lineEnding: LineEnding               // .lf / .crlf：新增行使用的风格（取第一个换行符）
     public var hasBOM: Bool
     public func render() -> String                  // 未修改时与输入逐字节一致
     public func render(redactingSecrets: Bool) -> String
@@ -599,11 +599,22 @@ public struct ProfileDocument: Sendable {
 
 public struct ProfileLine: Sendable, Identifiable {
     public let id: LineID                           // 编辑期间稳定
-    public var raw: String
-    public var kind: Kind                           // .blank, .comment, .directive, .sectionHeader(name), .entry(Entry), .invalid
-    public var sectionName: String?                 // 所属节（规范化名）
-    public var location: SourceLocation             // 行号（1 起）
+    public var raw: String                          // 不含换行符
+    public var terminator: String                   // 该行原换行符："\n"、"\r\n"，末行无换行时为 ""
+    public var kind: ProfileLineKind                // .blank, .comment, .directive, .sectionHeader(name), .entry(ProfileEntry), .invalid
+    public var sectionName: String?                 // 所属节（规范化名：小写、空白合并）
+    public var lineNumber: Int                      // 行号（1 起）
 }
+```
+
+实现要点：
+
+- 按 UTF-8 字节切行（Swift 把 `\r\n` 视为一个字符），每行保存自己的换行符，混合换行风格也能逐字节写回；单独的 `\r` 属于行内容。
+- 从字节解析时显式识别 BOM（Foundation 解码会静默去掉它）。
+- 键值节（`[General]`、`[Proxy]`、`[Proxy Group]`、`[Host]`、`[Script]`、`[MITM]`）的条目按第一个 `=` 拆成键与值；其它节与未知节整行为值。字段的进一步拆分由 `FieldTokenizer` 完成（引号、转义、括号深度）。
+- 语法阶段给出 `CFG-001`、`CFG-003`（非文件开头的指令）、`CFG-004`；其余诊断由类型化与校验阶段给出。
+
+```swift
 
 /// 类型化、已叠加模块、已校验的结果；不含编译后的匹配结构。
 public struct ResolvedProfile: Sendable {

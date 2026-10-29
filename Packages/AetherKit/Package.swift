@@ -41,7 +41,7 @@ var targets: [Target] = [
     .testTarget(name: "CBlake3Tests", dependencies: ["CBlake3", "AetherTestSupport"]),
 
     .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation", "AetherTestSupport"]),
-    .testTarget(name: "AetherProfileTests", dependencies: ["AetherProfile"]),
+    .testTarget(name: "AetherProfileTests", dependencies: ["AetherProfile", "AetherTestSupport"]),
     .testTarget(name: "AetherRulesTests", dependencies: ["AetherRules"]),
     .testTarget(name: "AetherDNSTests", dependencies: ["AetherDNS"]),
     .testTarget(name: "AetherOutboundTests", dependencies: ["AetherOutbound"]),
