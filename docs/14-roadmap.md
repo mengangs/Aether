@@ -50,7 +50,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 
 | 状态 | 编号 | 任务 | 参考 | 完成标准 |
 | --- | --- | --- | --- | --- |
-| [ ] | M1-01 | `AetherFoundation`：`IPAddress`、`CIDR`、`Hostname`（规范化、Punycode）、`Endpoint`、LRU、错误协议、字节工具 | 02 §3、05 §3.3 | RFC 3492 Punycode 示例通过 |
+| [x] | M1-01 | `AetherFoundation`：`IPAddress`、`CIDR`、`Hostname`（规范化、Punycode）、`Endpoint`、LRU、错误协议、字节工具 | 02 §3、05 §3.3 | RFC 3492 Punycode 示例通过 |
 | [ ] | M1-02 | 词法与无损模型 `ProfileDocument`；解析器模糊测试目标 | 04 §2、§3、§15.1 | 全部 fixtures 往返逐字节一致 |
 | [ ] | M1-03 | 各节类型化解析为 Spec 类型，产出诊断 | 04 §4–§11 | 每种条目至少一个正例与一个反例 |
 | [ ] | M1-04 | 语义校验：名称唯一、引用存在、组环检测、FINAL、CIDR / 正则 / 端口 | 04 §13 | 每个 error / warning 诊断码有测试 |

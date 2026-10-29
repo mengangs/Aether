@@ -79,7 +79,7 @@ public struct RouteContext: Sendable {
 **域名规范化**（规则值与流的主机名都要做）：
 
 - ASCII 转小写，去掉末尾的 `.`；
-- 含非 ASCII 字符的标签转为 Punycode（`xn--`），比较一律用 A-label；
+- 含非 ASCII 字符的标签先做 Unicode 小写化，再转为 Punycode（`xn--`，RFC 3492），比较一律用 A-label。不实现完整的 UTS #46 映射（兼容性分解、上下文规则等），对常见的中、日、韩及带重音字母的域名足够；实现见 `AetherFoundation.Hostname`；
 - 原始拼写另存，仅用于展示。
 
 | 类型 | 规则 |
