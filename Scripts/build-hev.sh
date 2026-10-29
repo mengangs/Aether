@@ -21,7 +21,7 @@ IOS_MIN="17.0"
 MACOS_MIN="14.0"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo "build-hev.sh 只能在 macOS 上运行。" >&2
+    echo "error: build-hev.sh only runs on macOS." >&2
     exit 1
 fi
 
@@ -31,7 +31,7 @@ REV="$(git -C "$SRC" rev-parse HEAD)"
 SCRIPT_HASH="$(shasum -a 256 "$0" | cut -c1-16)"
 STAMP="$REV $SCRIPT_HASH"
 if [[ -d "$OUT" && -f "$OUT_DIR/VERSION" && "$(cat "$OUT_DIR/VERSION")" == "$STAMP" ]]; then
-    echo "HevSocks5Tunnel.xcframework 已是最新（$REV）。"
+    echo "HevSocks5Tunnel.xcframework is up to date (${REV})."
     exit 0
 fi
 
@@ -45,7 +45,7 @@ SHORT_REV="$(git -C "$SRC" rev-parse --short HEAD)"
 # build_static <sdk> <arch> <最低版本>
 build_static() {
     local sdk="$1" arch="$2" min="$3"
-    echo "==> hev: $sdk $arch（最低 $min）"
+    echo "==> hev: ${sdk} ${arch} (min ${min})"
     local cc="xcrun --sdk $sdk clang"
     # 上游 Makefile 带 -Werror；vendored 代码的新编译器警告不应阻断构建。
     local flags="-arch $arch -m$sdk-version-min=$min -Wno-error"
@@ -97,5 +97,11 @@ xcodebuild -create-xcframework \
     -library "$WORK/slices/macosx-arm64-x86_64/libhev-socks5-tunnel.a" -headers "$HEADERS" \
     -output "$OUT" >/dev/null
 
-echo "$STAMP" >"$OUT_DIR/VERSION"
-echo "已生成 $OUT（hev $(git -C "$SRC" describe --tags --always)）。"
+for slice in ios-arm64 ios-arm64_x86_64-simulator macos-arm64_x86_64; do
+    if [[ ! -f "${OUT}/${slice}/libhev-socks5-tunnel.a" ]]; then
+        echo "error: missing slice ${slice} in ${OUT}" >&2
+        exit 1
+    fi
+done
+echo "${STAMP}" >"${OUT_DIR}/VERSION"
+echo "Generated ${OUT} (hev $(git -C "${SRC}" describe --tags --always))."
