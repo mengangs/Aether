@@ -125,6 +125,8 @@ public enum DiagnosticCatalog {
         .cfgModuleSectionNotAllowed: .warning,
         .cfgModuleArgumentMissing: .error,
         .cfgModuleRequirementIgnored: .info,
+        .cfgModuleSystemMismatch: .warning,
+        .cfgModuleMissingName: .warning,
         .cfgInsecureResource: .warning,
         .cfgInvalidResourceURL: .error,
         .cfgCompatibilityNote: .info,

@@ -102,7 +102,7 @@ struct ProfileDocumentLexerTests {
     }
 
     @Test func diagnosticSeveritiesFollowCatalog() {
-        #expect(DiagnosticCatalog.severities.count == 35)
+        #expect(DiagnosticCatalog.severities.count == 37)
         #expect(Diagnostic(.cfgMissingFinal, file: "f", message: "").severity == .warning)
         #expect(Diagnostic(.cfgIgnoredOnIOS, file: "f", message: "").severity == .info)
         #expect(Diagnostic(.cfgGroupCycle, file: "f", message: "").severity == .error)

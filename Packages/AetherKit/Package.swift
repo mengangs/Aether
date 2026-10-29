@@ -18,7 +18,10 @@ var targets: [Target] = [
         ]
     ),
     .target(name: "AetherFoundation", dependencies: [.product(name: "Logging", package: "swift-log")]),
-    .target(name: "AetherProfile", dependencies: ["AetherFoundation"]),
+    .target(
+        name: "AetherProfile",
+        dependencies: ["AetherFoundation", .product(name: "Crypto", package: "swift-crypto")]
+    ),
     .target(name: "AetherRules", dependencies: ["AetherFoundation"]),
     .target(name: "AetherDNS", dependencies: ["AetherFoundation"]),
     .target(name: "AetherOutbound", dependencies: ["AetherFoundation", "CBlake3"]),
@@ -100,7 +103,8 @@ var products: [Product] = [
 
 // 外部依赖：许可证与用途见 docs/03 §5.1，引入前按 §5.3 检查。
 let dependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2")
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2"),
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
 ]
 
 let package = Package(

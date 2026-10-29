@@ -462,9 +462,9 @@ hostname = %APPEND% api.example.org
 
 | 元数据 | 说明 |
 | --- | --- |
-| `#!name` | 必需，显示名 |
+| `#!name` | 必需，显示名；缺失时给出 `CFG-084` 并以文件名显示 |
 | `#!desc`、`#!author`、`#!homepage`、`#!icon`、`#!category`、`#!version` | 可选，显示用 |
-| `#!system` | 若声明且不含 `ios`，给出警告但仍可启用 |
+| `#!system` | 若声明且不含 `ios`，给出警告（`CFG-083`）但仍可启用 |
 | `#!arguments` | `名:默认值` 逗号分隔；正文中的 `{{{名}}}` 替换为参数值 |
 | `#!arguments-desc` | 参数说明 |
 | `#!requirement` | 解析后忽略，`CFG-082` |
@@ -483,6 +483,13 @@ hostname = %APPEND% api.example.org
 | `[Script]` | 合并；脚本名重复时保留先出现者，`CFG-062` |
 
 模块规则引用不存在的策略时报 `CFG-011`，该模块整体不生效（其它模块与配置不受影响），并在模块列表中显示错误。
+
+实现细则（`ProfileResolver`，M1-05）：
+
+- 模块中任何 error 级诊断（参数缺失 `CFG-081`、语法错误、无效条目、`CFG-011` 等）都使**该模块**整体不生效；这些诊断带模块文件名，不阻止配置提交（`ResolvedProfile.isCommittable` 只看配置文件自身的 error）。每个模块的结果（元数据、是否生效、诊断）在 `ResolvedProfile.modules` 中给出。
+- 参数替换在解析之前对模块文本进行：`{{{名}}}` 取用户填写的值，否则取 `#!arguments` 的默认值；值中的换行替换为空格以保持行号。未声明的占位符同样是 `CFG-081`。
+- `[General]`、`[MITM]` 按优先级从低到高依次应用：配置 → 模块列表末尾的模块 → … → 第一个模块，因此同一键以第一个模块的值为准。`%APPEND%` / `%INSERT%` 作用在当前值上；当前值不存在时作用在默认值上（`skip-proxy`、`always-real-ip` 的内置表、`hijack-dns`、`dns-server`）。
+- 条目类节的最终顺序为：第一个模块 → … → 最后一个模块 → 配置；`[Script]` 按同一顺序合并，重名时保留先出现者（即模块中的定义优先），其余报告 `CFG-062`。
 
 参数值与启用状态全局保存（所有配置共用），见 [11 §3](11-storage.md#3-文件布局)。
 
@@ -570,6 +577,8 @@ YAML `proxies` 字段映射：
 | `CFG-080` | warning | 模块包含不允许的节，已忽略 |
 | `CFG-081` | error | 模块参数缺失且无默认值 |
 | `CFG-082` | info | 模块 requirement 被忽略 |
+| `CFG-083` | warning | 模块声明的 `#!system` 不含 iOS |
+| `CFG-084` | warning | 模块缺少 `#!name` |
 | `CFG-090` | warning | 外部资源使用 HTTP |
 | `CFG-091` | error | 外部资源 URL 无效 |
 | `CFG-099` | info | 兼容性提示 |
@@ -643,9 +652,13 @@ public struct ResolvedProfile: Sendable {
     public var mitm: MITMSpec
     public var externalResources: [ExternalResourceRef]   // 所有需要下载的 URL 及其用途、更新间隔
     public var diagnostics: [Diagnostic]
-    public var revision: String                           // 所有源文本与参数的 SHA-256
+    public var revision: String                           // 所有源文本与参数的 SHA-256："sha256:<hex>"
+    public var profileFileName: String
+    public var modules: [ResolvedModule]                  // 每个启用模块：元数据、是否生效、诊断
 }
 ```
+
+修订号按顺序对以下字段做长度前缀后计算 SHA-256（swift-crypto）：格式标记 `aether-profile-v1`、配置文件名、配置文本，以及每个启用模块的名称、文本和按名排序的参数键值。修订号变化即视为运行包需要重新提交。
 
 `RuleSpec` 是递归枚举，逻辑规则持有子规则数组；每条 `RuleSpec` 记录来源（文件、行号）与原文，用于请求详情与规则测试中的展示。
 

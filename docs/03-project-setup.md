@@ -210,9 +210,9 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | apple/swift-nio-ssl | Apache-2.0 | Outbound、HTTP | TLS 客户端与服务端 | |
 | apple/swift-nio-http2 | Apache-2.0 | HTTP | HTTP/2 MitM（M7）、DoH over h2 | |
 | apple/swift-nio-extras | Apache-2.0 | HTTP | HTTP 压缩等辅助 Handler | |
-| apple/swift-crypto | Apache-2.0 | Outbound、Certificates | AEAD、哈希、HKDF、密钥；`_CryptoExtras`（RSA 等） | |
+| apple/swift-crypto | Apache-2.0 | Profile、Outbound、Certificates | AEAD、哈希（含配置修订号）、HKDF、密钥；`_CryptoExtras`（RSA 等） | 5.0.3 |
 | apple/swift-certificates | Apache-2.0 | Certificates | X.509 生成与签发（MitM） | |
-| apple/swift-asn1 | Apache-2.0 | Certificates | swift-certificates 依赖 | |
+| apple/swift-asn1 | Apache-2.0 | Certificates | swift-crypto、swift-certificates 的依赖 | 1.7.3（由 swift-crypto 引入） |
 | apple/swift-log | Apache-2.0 | 全部 | 日志门面 | 1.16.2 |
 | apple/swift-collections | Apache-2.0 | 全部 | `Deque`、`OrderedDictionary` | |
 | apple/swift-atomics | Apache-2.0 | Engine | 原子引用、计数器 | |
