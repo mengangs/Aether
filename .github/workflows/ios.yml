@@ -34,6 +34,18 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - id: hev
+        run: echo "rev=$(git -C Vendor/hev-socks5-tunnel rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache hev xcframework
+        uses: actions/cache@v6
+        with:
+          path: Packages/AetherKit/Binaries
+          key: hev-${{ steps.hev.outputs.rev }}-${{ hashFiles('Scripts/build-hev.sh') }}-${{ env.XCODE_APP }}
+
+      - name: Build hev xcframework
+        run: ./Scripts/build-hev.sh
+
       - name: Architecture
         run: swift Scripts/check-architecture.swift .
 

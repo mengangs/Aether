@@ -6,11 +6,22 @@ import PackageDescription
 // MARK: - 跨平台模块（Linux 与 Apple 平台都必须能构建与测试）
 
 var targets: [Target] = [
+    // BLAKE3 官方 C 实现（Vendor/blake3 的符号链接），关闭全部 SIMD 分支（docs/03 §6.2）。
+    .target(
+        name: "CBlake3",
+        cSettings: [
+            .define("BLAKE3_NO_SSE2"),
+            .define("BLAKE3_NO_SSE41"),
+            .define("BLAKE3_NO_AVX2"),
+            .define("BLAKE3_NO_AVX512"),
+            .define("BLAKE3_USE_NEON", to: "0"),
+        ]
+    ),
     .target(name: "AetherFoundation"),
     .target(name: "AetherProfile", dependencies: ["AetherFoundation"]),
     .target(name: "AetherRules", dependencies: ["AetherFoundation"]),
     .target(name: "AetherDNS", dependencies: ["AetherFoundation"]),
-    .target(name: "AetherOutbound", dependencies: ["AetherFoundation"]),
+    .target(name: "AetherOutbound", dependencies: ["AetherFoundation", "CBlake3"]),
     .target(name: "AetherCertificates", dependencies: ["AetherFoundation"]),
     .target(name: "AetherScriptCore", dependencies: ["AetherFoundation"]),
     .target(
@@ -24,6 +35,10 @@ var targets: [Target] = [
         dependencies: ["AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore"]
     ),
     .executableTarget(name: "aether-cli", dependencies: ["AetherEngine"]),
+
+    // 测试数据与测试工具，只供测试 target 依赖。
+    .target(name: "AetherTestSupport"),
+    .testTarget(name: "CBlake3Tests", dependencies: ["CBlake3", "AetherTestSupport"]),
 
     .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation"]),
     .testTarget(name: "AetherProfileTests", dependencies: ["AetherProfile"]),
@@ -57,9 +72,11 @@ var products: [Product] = [
 
 #if canImport(Darwin)
     targets += [
+        // hev-socks5-tunnel 的 xcframework，由 Scripts/build-hev.sh 生成（docs/03 §6.1）。
+        .binaryTarget(name: "CHevSocks5Tunnel", path: "Binaries/HevSocks5Tunnel.xcframework"),
         .target(name: "AetherScript", dependencies: ["AetherScriptCore"]),
         .target(name: "AetherControl", dependencies: ["AetherIPC"]),
-        .target(name: "AetherTunnelSupport", dependencies: ["AetherEngine"]),
+        .target(name: "AetherTunnelSupport", dependencies: ["AetherEngine", "CHevSocks5Tunnel"]),
 
         .testTarget(name: "AetherScriptTests", dependencies: ["AetherScript"]),
         .testTarget(name: "AetherControlTests", dependencies: ["AetherControl"]),

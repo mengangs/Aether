@@ -1,4 +1,5 @@
 import AetherFoundation
+import CBlake3
 
 /// AetherOutbound：出站连接器与各代理协议、传输层（TLS、WebSocket、obfs）、测速。
 ///
@@ -7,5 +8,5 @@ public enum AetherOutboundModule {
     /// 模块名。
     public static let name = "AetherOutbound"
     /// 本模块直接依赖的 AetherKit 模块。
-    public static let dependencies: [String] = [AetherFoundationModule.name]
+    public static let dependencies: [String] = [AetherFoundationModule.name, "CBlake3"]
 }

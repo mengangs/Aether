@@ -282,8 +282,8 @@ schemes:
 
 | 库 | 许可证 | 形式 | 用途 |
 | --- | --- | --- | --- |
-| heiher/hev-socks5-tunnel（含其子模块 lwIP、hev-task-system 等） | MIT（lwIP 为 BSD） | git submodule → xcframework | TUN ↔ SOCKS5 |
-| BLAKE3 官方 C 实现 | CC0-1.0 / Apache-2.0 | 源码拷贝 | Shadowsocks 2022 密钥派生 |
+| heiher/hev-socks5-tunnel 2.19.3（含其子模块 lwIP、hev-task-system、yaml、hev-socks5-core） | MIT（lwIP 为 BSD） | git submodule → xcframework | TUN ↔ SOCKS5 |
+| BLAKE3 官方 C 实现（1.8.7） | CC0-1.0 / Apache-2.0 | 源码拷贝 | Shadowsocks 2022 密钥派生 |
 
 ### 5.3 引入新依赖的检查
 
@@ -338,18 +338,20 @@ let package = Package(
 
 ### 6.1 hev-socks5-tunnel
 
-- 以 git submodule 放在 `Vendor/hev-socks5-tunnel`，固定到一个发布 tag；升级时在提交说明中写明变更摘要。
-- `Scripts/build-hev.sh`：
+- 以 git submodule 放在 `Vendor/hev-socks5-tunnel`，固定到一个发布 tag（当前 `2.19.3`）；升级时在提交说明中写明变更摘要。
+- `Scripts/build-hev.sh`（仅 macOS）：
   1. `git submodule update --init --recursive`；
-  2. 调用上游的 `build-apple.sh` 生成 `HevSocks5Tunnel.xcframework`（至少含 iOS 设备 arm64 与 iOS 模拟器切片）；
-  3. 若产物不含 `module.modulemap`，补写一个暴露 `hev-main.h` 的模块映射，模块名 `CHevSocks5Tunnel`；
+  2. 在临时副本中用上游 Makefile 的 `static` 目标逐个切片编译，再按上游 `build-apple.sh` 的方式用 `libtool` / `lipo` 合并：iOS 设备 arm64、iOS 模拟器 arm64 + x86_64、macOS arm64 + x86_64（macOS 切片供 macOS 主机上的 `swift test` 链接 `AetherTunnelSupport`）。最低版本 iOS 17.0 / macOS 14.0；追加 `-Wno-error`，避免新编译器对 vendored 代码的警告阻断构建；
+  3. 写入暴露 `hev-main.h` 的模块映射，模块名 `CHevSocks5Tunnel`（头文件位于 `Headers/CHevSocks5Tunnel/`）；
   4. 输出到 `Packages/AetherKit/Binaries/HevSocks5Tunnel.xcframework`；
-  5. 在产物旁写 `VERSION`（submodule commit），脚本发现版本一致时跳过重复构建。
-- CI 以 submodule commit 作为缓存键缓存该 xcframework。
+  5. 在产物旁写 `VERSION`（submodule commit + 脚本哈希），两者一致时跳过重复构建。
+- 不直接调用上游的 `build-apple.sh`：它还会构建 tvOS 切片（不需要，且 runner 不一定安装 tvOS 平台），模块名也是 `HevSocks5Tunnel`。
+- CI 以 submodule commit、脚本哈希与 Xcode 版本作为缓存键缓存该 xcframework。
+- macOS 上首次 `swift build` / `swift test` 之前必须先运行 `build-hev.sh`（或 `bootstrap.sh`），否则 `CHevSocks5Tunnel` 二进制 target 不存在；Linux 上不声明该 target，不受影响。
 
 ### 6.2 BLAKE3
 
-拷贝官方仓库 `c/` 目录中的可移植实现（`blake3.c`、`blake3_dispatch.c`、`blake3_portable.c` 与头文件）到 `Vendor/blake3`，并在 `Packages/AetherKit/Sources/CBlake3` 中以符号链接或拷贝引用。编译宏关闭所有 SIMD 分支（`BLAKE3_NO_SSE2`、`BLAKE3_NO_SSE41`、`BLAKE3_NO_AVX2`、`BLAKE3_NO_AVX512`、`BLAKE3_USE_NEON=0`），保证 Linux x86_64 与 iOS arm64 行为一致；它只用于每会话一次的密钥派生，性能足够。保留上游 LICENSE 与版本号文件。
+拷贝官方仓库 `c/` 目录中的可移植实现（`blake3.c`、`blake3_dispatch.c`、`blake3_portable.c` 与头文件，当前版本 1.8.7）到 `Vendor/blake3`，并在 `Packages/AetherKit/Sources/CBlake3` 中以符号链接引用（SwiftPM 跟随相对符号链接，Linux 与 macOS 均可）。编译宏关闭所有 SIMD 分支（`BLAKE3_NO_SSE2`、`BLAKE3_NO_SSE41`、`BLAKE3_NO_AVX2`、`BLAKE3_NO_AVX512`、`BLAKE3_USE_NEON=0`），保证 Linux x86_64 与 iOS arm64 行为一致；它只用于每会话一次的密钥派生，性能足够。保留上游 LICENSE 与版本号文件。
 
 ### 6.3 bootstrap.sh
 

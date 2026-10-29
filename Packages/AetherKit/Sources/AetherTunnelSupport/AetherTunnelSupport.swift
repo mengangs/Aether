@@ -1,4 +1,5 @@
 import AetherEngine
+import CHevSocks5Tunnel
 
 /// AetherTunnelSupport：隧道网络设置构建、utun 描述符获取、hev 桥接、网络路径监控（仅 Apple 平台）。
 ///
@@ -7,5 +8,5 @@ public enum AetherTunnelSupportModule {
     /// 模块名。
     public static let name = "AetherTunnelSupport"
     /// 本模块直接依赖的 AetherKit 模块。
-    public static let dependencies: [String] = [AetherEngineModule.name]
+    public static let dependencies: [String] = [AetherEngineModule.name, "CHevSocks5Tunnel"]
 }

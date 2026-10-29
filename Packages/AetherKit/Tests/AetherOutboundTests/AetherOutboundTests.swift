@@ -4,5 +4,5 @@ import Testing
 
 @Test func moduleIdentity() {
     #expect(AetherOutboundModule.name == "AetherOutbound")
-    #expect(AetherOutboundModule.dependencies.count == 1)
+    #expect(AetherOutboundModule.dependencies.count == 2)
 }
