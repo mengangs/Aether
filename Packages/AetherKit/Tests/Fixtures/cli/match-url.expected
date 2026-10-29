@@ -1,0 +1,10 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: host=api.example.com port=443 tcp https url
+#1 RULE-SET,LAN,DIRECT                                                   不命中（14 rules）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 需要 IP → 解析（api.example.com = 198.51.100.50）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 不命中（9 rules）
+#3 DOMAIN-SET,https://rules.example.com/streaming.txt,Streaming          不命中（4 domains）
+#4 DOMAIN,api.example.com,Proxy                                          命中
+命中：#4 DOMAIN,api.example.com,Proxy（full.conf:67）
+策略链：Proxy → HK-01

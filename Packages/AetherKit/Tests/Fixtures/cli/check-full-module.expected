@@ -1,0 +1,4 @@
+full.conf: 10 proxies, 6 groups, 22 rules, 4 hosts, 6 scripts, 6 external resources
+module sample.amodule: 示例模块 (applied)
+summary: 0 errors, 0 warnings, 0 infos; committable
+revision: sha256:c1b27dfb33f44758c601089ed25a0d0d548d37c299f3ecf219e3cb256a691358

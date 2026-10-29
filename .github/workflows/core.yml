@@ -38,3 +38,10 @@ jobs:
 
       - name: Test
         run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --parallel
+
+      - name: CLI smoke test
+        run: |
+          swift run --package-path Packages/AetherKit aether-cli check examples/full.conf
+          swift run --package-path Packages/AetherKit aether-cli match examples/full.conf \
+            --url https://api.example.com/v1 --resolve api.example.com=198.51.100.1
+          swift run --package-path Packages/AetherKit aether-cli render examples/full.conf --redact > /dev/null

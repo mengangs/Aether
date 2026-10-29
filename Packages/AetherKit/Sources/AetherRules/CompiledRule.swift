@@ -77,8 +77,8 @@ struct CompiledRule: Sendable {
 
     var traceNote: String? {
         switch matcher {
-        case .ruleSet(let set, _): return set.map { "\($0.ruleCount) rules" } ?? "not loaded"
-        case .domainSet(let set, _): return set.map { "\($0.count) domains" } ?? "not loaded"
+        case .ruleSet(let set, _): return set.map { "\($0.ruleCount) rules" }
+        case .domainSet(let set, _): return set.map { "\($0.count) domains" }
         default: return nil
         }
     }

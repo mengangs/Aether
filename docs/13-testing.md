@@ -16,7 +16,7 @@
 
 - 使用 Swift Testing（`import Testing`、`@Test`、`#expect`）；参数化测试用于表驱动用例。
 - 测试数据放在 `Packages/AetherKit/Tests/Fixtures/`：`profiles/`、`modules/`、`rulesets/`、`dns/`（报文二进制）、`vectors/`（密码学与协议测试向量，注明来源）、`certs/`、`scripts/`。测试通过 `AetherTestSupport` 中的 `Fixtures.url(_:)` / `Fixtures.data(_:)` 按源码路径读取这些文件，不使用 SwiftPM 资源包。
-- 黄金文件测试：解析结果摘要、诊断列表、渲染输出与 fixtures 中的 `.expected` 文件比对；更新黄金文件需要在提交说明中写明原因。
+- 黄金文件测试：解析结果摘要、诊断列表、渲染输出与 fixtures 中的 `.expected` 文件比对；更新黄金文件需要在提交说明中写明原因。以环境变量 `AETHER_UPDATE_GOLDEN=1` 运行测试会重写期望文件，重写后必须逐个人工检查差异。
 - 覆盖率目标：`AetherProfile`、`AetherRules`、`AetherDNS` 的行覆盖率 ≥ 85%；`AetherOutbound` 的编解码与密码学部分 ≥ 85%；其余模块 ≥ 60%。CI 输出覆盖率报告，不作为硬性门槛，但下降超过 2 个百分点时在提交说明中写明。
 - 时间与随机数通过注入的 `Clock` 与 `RandomNumberGenerator` 控制，测试不得依赖真实时间流逝（超时测试用可控时钟）。
 - 测试不得访问公网；需要网络的测试只连本地进程或 Docker 服务。

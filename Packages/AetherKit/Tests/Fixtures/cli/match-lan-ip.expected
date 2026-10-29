@@ -1,0 +1,6 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: ip=192.168.1.20 port=443 tcp
+#1 RULE-SET,LAN,DIRECT 命中（14 rules）
+命中：#1 RULE-SET,LAN,DIRECT（full.conf:62）
+策略链：DIRECT

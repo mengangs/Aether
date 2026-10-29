@@ -1,0 +1,8 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: host=unresolvable.example.edu port=443 tcp
+#1 RULE-SET,LAN,DIRECT                                                   不命中（14 rules）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 需要 IP → 解析（unresolvable.example.edu: resolution failed）
+#20 FINAL,Proxy,dns-failed                                               命中（dns-failed）
+命中：#20 FINAL,Proxy,dns-failed（full.conf:87）
+策略链：Proxy → HK-01

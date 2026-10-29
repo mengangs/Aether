@@ -1,0 +1,10 @@
+broken.conf: 1 proxies, 2 groups, 3 rules, 0 hosts, 0 scripts, 0 external resources
+broken.conf:3: error: CFG-020 Invalid value for loglevel: expected debug, info, notice, warning or error
+broken.conf:6: error: CFG-021 Trojan proxy A needs a password
+broken.conf:8: error: CFG-011 Group G references unknown policy Missing
+broken.conf:9: error: CFG-012 Policy groups form a cycle: Loop → Loop
+broken.conf:12: error: CFG-032 Invalid IP-CIDR value 300.1.1.1/8
+broken.conf:13: warning: CFG-031 PROCESS-NAME is not supported on iOS; the rule never matches
+broken.conf: warning: CFG-035 No FINAL rule; FINAL,DIRECT is appended
+summary: 5 errors, 2 warnings, 0 infos; not committable
+revision: sha256:7581e8778a90a9317d71ed2e18ca9cf825c936961fd08fb2e2b01a38e0a267da

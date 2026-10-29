@@ -1,0 +1,7 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: host=x.ads.example.com port=443 tcp https url
+#1 RULE-SET,LAN,DIRECT                                                   不命中（14 rules）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 命中（9 rules）
+命中：#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400（full.conf:64）
+策略链：REJECT

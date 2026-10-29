@@ -1,0 +1,9 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: host=video.example.net port=443 tcp
+#1 RULE-SET,LAN,DIRECT                                                   不命中（14 rules）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 需要 IP → 解析（video.example.net = 198.51.100.51）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 不命中（9 rules）
+#3 DOMAIN-SET,https://rules.example.com/streaming.txt,Streaming          命中（4 domains）
+命中：#3 DOMAIN-SET,https://rules.example.com/streaming.txt,Streaming（full.conf:65）
+策略链：Streaming → （fallback 自动选择）

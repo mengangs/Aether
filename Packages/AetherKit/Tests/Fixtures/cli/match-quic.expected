@@ -1,0 +1,18 @@
+note: rule-set https://rules.example.com/ads.list: 9 rules, 5 skipped
+note: domain-set https://rules.example.com/streaming.txt: 4 domains, 2 skipped
+target: host=quic.example.edu port=443 udp quic
+#1 RULE-SET,LAN,DIRECT                                                   不命中（14 rules）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 需要 IP → 解析（quic.example.edu = 198.51.100.52）
+#2 RULE-SET,https://rules.example.com/ads.list,REJECT,update-interval=86400 不命中（9 rules）
+#3 DOMAIN-SET,https://rules.example.com/streaming.txt,Streaming          不命中（4 domains）
+#4 DOMAIN,api.example.com,Proxy                                          不命中
+#5 DOMAIN-SUFFIX,example.org,Proxy                                       不命中
+#6 DOMAIN-KEYWORD,tracker,REJECT-TINYGIF                                 不命中
+#7 DOMAIN-WILDCARD,*.cdn?.example.net,Balance                            不命中
+#8 AND,((DOMAIN-SUFFIX,example.net),(PROTOCOL,UDP)),REJECT               不命中
+#9 OR,((DOMAIN-SUFFIX,video.example.com),(DOMAIN-SUFFIX,media.example.com)),Streaming 不命中
+#10 AND,((DOMAIN-SUFFIX,legacy.example.com),(NOT,((DEST-PORT,443)))),REJECT 不命中
+#11 DEST-PORT,22,DIRECT                                                  不命中
+#12 PROTOCOL,QUIC,REJECT                                                 命中
+命中：#12 PROTOCOL,QUIC,REJECT（full.conf:77）
+策略链：REJECT
