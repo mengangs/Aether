@@ -17,7 +17,7 @@ var targets: [Target] = [
             .define("BLAKE3_USE_NEON", to: "0"),
         ]
     ),
-    .target(name: "AetherFoundation"),
+    .target(name: "AetherFoundation", dependencies: [.product(name: "Logging", package: "swift-log")]),
     .target(name: "AetherProfile", dependencies: ["AetherFoundation"]),
     .target(name: "AetherRules", dependencies: ["AetherFoundation"]),
     .target(name: "AetherDNS", dependencies: ["AetherFoundation"]),
@@ -40,7 +40,7 @@ var targets: [Target] = [
     .target(name: "AetherTestSupport"),
     .testTarget(name: "CBlake3Tests", dependencies: ["CBlake3", "AetherTestSupport"]),
 
-    .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation"]),
+    .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation", "AetherTestSupport"]),
     .testTarget(name: "AetherProfileTests", dependencies: ["AetherProfile"]),
     .testTarget(name: "AetherRulesTests", dependencies: ["AetherRules"]),
     .testTarget(name: "AetherDNSTests", dependencies: ["AetherDNS"]),
@@ -48,7 +48,7 @@ var targets: [Target] = [
     .testTarget(name: "AetherCertificatesTests", dependencies: ["AetherCertificates"]),
     .testTarget(name: "AetherScriptCoreTests", dependencies: ["AetherScriptCore"]),
     .testTarget(name: "AetherHTTPTests", dependencies: ["AetherHTTP"]),
-    .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC"]),
+    .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC", "AetherTestSupport"]),
     .testTarget(name: "AetherStoreTests", dependencies: ["AetherStore"]),
     .testTarget(name: "AetherEngineTests", dependencies: ["AetherEngine"]),
 ]
@@ -76,23 +76,35 @@ var products: [Product] = [
         .binaryTarget(name: "CHevSocks5Tunnel", path: "Binaries/HevSocks5Tunnel.xcframework"),
         .target(name: "AetherScript", dependencies: ["AetherScriptCore"]),
         .target(name: "AetherControl", dependencies: ["AetherIPC"]),
+        .target(
+            name: "AetherKeychain",
+            dependencies: ["AetherFoundation", "AetherIPC", .product(name: "Logging", package: "swift-log")]
+        ),
         .target(name: "AetherTunnelSupport", dependencies: ["AetherEngine", "CHevSocks5Tunnel"]),
 
         .testTarget(name: "AetherScriptTests", dependencies: ["AetherScript"]),
         .testTarget(name: "AetherControlTests", dependencies: ["AetherControl"]),
+        .testTarget(name: "AetherKeychainTests", dependencies: ["AetherKeychain"]),
         .testTarget(name: "AetherTunnelSupportTests", dependencies: ["AetherTunnelSupport"]),
     ]
     products += [
         .library(name: "AetherScript", targets: ["AetherScript"]),
         .library(name: "AetherControl", targets: ["AetherControl"]),
+        .library(name: "AetherKeychain", targets: ["AetherKeychain"]),
         .library(name: "AetherTunnelSupport", targets: ["AetherTunnelSupport"]),
     ]
 #endif
+
+// 外部依赖：许可证与用途见 docs/03 §5.1，引入前按 §5.3 检查。
+let dependencies: [Package.Dependency] = [
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2")
+]
 
 let package = Package(
     name: "AetherKit",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: products,
+    dependencies: dependencies,
     targets: targets,
     swiftLanguageModes: [.v6]
 )

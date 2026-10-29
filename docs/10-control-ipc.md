@@ -92,6 +92,7 @@ public struct IPCError: Error, Codable, Sendable {
 | `IPC-010` | 没有可用配置（Active Bundle 不存在） |
 | `IPC-011` | 参数无效（如不存在的策略组或成员） |
 | `IPC-012` | 当前状态不允许该操作（如启动中） |
+| `IPC-020` | 运行环境无效：Info.plist 缺少标识符键，或值为空、含未展开的 `$(...)`、含非法字符（[03 §3.2](03-project-setup.md#32-运行时读取标识符)） |
 
 ## 3. 状态快照
 

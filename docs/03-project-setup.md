@@ -136,14 +136,20 @@ AETHER_BUNDLE_ID_PREFIX = com.yourname.aether
 代码只通过 `AetherIPC` 中的 `AppEnvironment` 读取：
 
 ```swift
-public struct AppEnvironment: Sendable {
+public struct AppEnvironment: Sendable, Equatable {
+    public let bundleIdentifierPrefix: String
     public let appGroupIdentifier: String
     public let keychainAccessGroup: String
     public let tunnelBundleIdentifier: String
     public let urlScheme: String
-    public static func fromMainBundle() throws -> AppEnvironment   // 缺键时抛错并写日志，不得回退到硬编码值
+    public init(infoDictionary: [String: Any]) throws          // 缺键、值为空、含未展开的 $(...) 时抛 IPC-020
+    public static func fromMainBundle() throws -> AppEnvironment  // 不得回退到硬编码值
+    public func resolvingKeychainAccessGroup(probed: String?) -> (AppEnvironment, KeychainAccessGroupResolution)
 }
 ```
+
+- App 与隧道启动时调用 `AetherKeychain` 中的 `AppEnvironment.loadForCurrentProcess(logger:)`：读取 Info.plist，再用 `KeychainAccessGroupProbe` 探测实际的访问组前缀并校正（§8.4），校正或探测失败时写日志。
+- App Group 中的目录布局由 `AetherIPC` 的 `SharedContainer` 给出（[11 §3](11-storage.md#3-文件布局)）；容器不可用时抛 `STO-001`。
 
 - `NETunnelProviderProtocol.providerBundleIdentifier` 取 `tunnelBundleIdentifier`。
 - App Group 容器用 `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)`，返回 `nil` 时在界面上显示"App Group 不可用"的明确错误，而不是崩溃。
@@ -206,7 +212,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | apple/swift-crypto | Apache-2.0 | Outbound、Certificates | AEAD、哈希、HKDF、密钥；`_CryptoExtras`（RSA 等） | |
 | apple/swift-certificates | Apache-2.0 | Certificates | X.509 生成与签发（MitM） | |
 | apple/swift-asn1 | Apache-2.0 | Certificates | swift-certificates 依赖 | |
-| apple/swift-log | Apache-2.0 | 全部 | 日志门面 | |
+| apple/swift-log | Apache-2.0 | 全部 | 日志门面 | 1.16.2 |
 | apple/swift-collections | Apache-2.0 | 全部 | `Deque`、`OrderedDictionary` | |
 | apple/swift-atomics | Apache-2.0 | Engine | 原子引用、计数器 | |
 | jpsim/Yams | MIT | Profile | 解析 YAML 格式的节点订阅 | |

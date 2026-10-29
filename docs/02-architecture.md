@@ -65,6 +65,7 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 | `AetherStore` | 全部 | GRDB | 流量统计、请求历史、日志簿、脚本存储的数据库访问 |
 | `AetherScript` | Apple | JavaScriptCore | `ScriptRuntime` 的 JavaScriptCore 实现与 JS API 桥接 |
 | `AetherControl` | Apple | NetworkExtension | App 侧隧道管理（`TunnelController`）、IPC 客户端（`TunnelClient`）、状态观察；App 与小组件共用 |
+| `AetherKeychain` | Apple | Security、`AetherIPC` | Keychain 访问：启动时探测访问组的 Team ID 前缀（03 §8.4）；M5 起存取 MitM CA 私钥；App 与隧道共用 |
 | `AetherTunnelSupport` | Apple | NetworkExtension、CHevSocks5Tunnel | 隧道网络设置构建、utun 描述符获取、hev 桥接、网络路径监控、Darwin 通知发送 |
 | `aether-cli` | 全部（可执行） | `AetherEngine` 等 | 开发调试命令行：校验配置、规则测试、在本机以 SOCKS5/HTTP 入站运行引擎 |
 | `AetherTestSupport` | 全部（仅测试） | — | 测试数据访问（`Fixtures`，定位 `Tests/Fixtures/`）、十六进制等测试工具；任何产品模块都不得依赖它 |
@@ -101,6 +102,7 @@ flowchart BT
   ST --> F
   S[AetherScript] --> SC
   CT[AetherControl] --> I
+  KC[AetherKeychain] --> I
   TS[AetherTunnelSupport] --> E
   CLI[aether-cli] --> E
 ```
@@ -218,7 +220,7 @@ public protocol AetherErrorProtocol: Error, Sendable {
 
 ### 8.2 日志
 
-- 统一使用 swift-log 门面。Apple 平台后端写入 `os.Logger`（subsystem = Bundle ID 前缀，category = 模块名），同时写入 App Group 中的滚动日志文件（2 个文件 × 1 MiB）。
+- 统一使用 swift-log 门面，进程启动早期调用 `AetherLogging.bootstrap`（`AetherFoundation`）。Apple 平台后端写入 `os.Logger`（subsystem = Bundle ID 前缀，category = 日志标签，即模块名），同时写入 App Group 中的滚动日志文件 `Logs/<tunnel|app>.0.log`（当前）与 `.1.log`（上一个），每个 1 MiB；行格式 `<UTC 毫秒时间> <级别> [<标签>] <消息> key=value…`，单行上限 4 KiB（超出截断），写入失败时丢弃该行并计数，不影响调用方。
 - 级别：`debug`、`info`、`notice`、`warning`、`error`。默认 `notice`；配置项 `loglevel` 与运行时 IPC 可调整。
 - **不得**记录：密码、密钥、UUID 类凭据、Cookie / Authorization 头的值、请求 Body。`info` 及以上只记录主机名，`debug` 才可记录 URL 路径。
 - 不得使用 `print`。

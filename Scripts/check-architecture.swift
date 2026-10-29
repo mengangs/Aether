@@ -26,6 +26,7 @@ let allowedGraph: [String: [String]] = [
     "AetherEngine": ["AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore"],
     "AetherScript": ["AetherScriptCore"],
     "AetherControl": ["AetherIPC"],
+    "AetherKeychain": ["AetherFoundation", "AetherIPC"],
     "AetherTunnelSupport": ["AetherEngine", "CHevSocks5Tunnel"],
     "aether-cli": ["AetherEngine"],
     "CBlake3": [],
@@ -36,7 +37,7 @@ let allowedGraph: [String: [String]] = [
 
 /// 只能在 Apple 平台编译的模块；其余模块都必须跨平台。
 let appleOnlyModules: Set<String> = [
-    "AetherScript", "AetherControl", "AetherTunnelSupport", "CHevSocks5Tunnel",
+    "AetherScript", "AetherControl", "AetherKeychain", "AetherTunnelSupport", "CHevSocks5Tunnel",
 ]
 
 /// 跨平台模块不得 import 的框架。
