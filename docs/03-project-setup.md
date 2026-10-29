@@ -389,7 +389,7 @@ Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runne
    - `identifiers.json` / `identifiers.txt`：标识符清单（版本、提交、Team ID、各 Bundle ID、App Group、Keychain 访问组、URL Scheme）；
    - `Aether-<版本>-<构建号>-dSYMs.zip`；
    - 打包后自检 ipa 结构，并检查扩展 Bundle ID 与 App 中记录的一致；
-4. 产物上传为 workflow artifact；tag 触发时另外创建 GitHub Release（`0.x` 标为 pre-release），说明取 `CHANGELOG.md` 对应节。
+4. 产物上传为 workflow artifact；tag 触发时另外创建 GitHub Release（`0.x` 标为 pre-release），说明取 `CHANGELOG.md` 对应节。若该 tag 的 Release 已存在（例如在网页上先创建），则更新说明并覆盖附件。
 
 项目不在 CI 中保存签名机密，发布产物一律是未签名 ipa，由使用者按 §8.4 自行签名。
 

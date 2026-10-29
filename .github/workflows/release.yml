@@ -120,5 +120,12 @@ jobs:
           zip -qr ../entitlements.zip entitlements
           prerelease=""
           [[ "$version" == 0.* ]] && prerelease="--prerelease"
-          gh release create "$GITHUB_REF_NAME" --title "Aether $GITHUB_REF_NAME" --notes-file ../notes.md $prerelease \
-            ./*.ipa ./*.zip ../entitlements.zip identifiers.json identifiers.txt
+          assets=(./*.ipa ./*.zip ../entitlements.zip identifiers.json identifiers.txt)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # Release 已存在（例如在 GitHub 网页上先建了 Release 与 tag）：更新说明并覆盖附件。
+            gh release edit "$GITHUB_REF_NAME" --title "Aether $GITHUB_REF_NAME" --notes-file ../notes.md $prerelease
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --title "Aether $GITHUB_REF_NAME" --notes-file ../notes.md $prerelease \
+              "${assets[@]}"
+          fi

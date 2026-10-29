@@ -166,9 +166,11 @@ footprint 通过诊断页（`getMemoryInfo`）读取；数据追加到本文件�
 
 ### 7.1 检查记录
 
+版本 tag 由仓库所有者创建：开发会话的 Git 代理与 GitHub API 都不允许写 tag。每个里程碑结束时，下表"版本 / tag"列给出 tag 应指向的提交；所有者执行 `git tag -a vX.Y.Z <提交> -m "Aether vX.Y.Z" && git push origin vX.Y.Z`（或在 GitHub 网页 Releases → Draft a new release 中以该提交创建 tag）后，`release.yml` 自动构建并把产物附到对应的 GitHub Release。tag 创建之前，同一提交的未签名 ipa 可从该提交上手动运行 `release.yml` 的 artifact 获取。
+
 | 里程碑 | 版本 / tag | 日期 | 任务 | CI | 真机验收 | 真机测量 | 文档 | CHANGELOG / 版本号 | 隐私清单 / 许可 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M0 | v0.1.0 | 2026-10-29 | 8/8 完成 | core / ios / release 全绿 | V01 待验证（步骤见 §6.1） | 待真机（M0 无性能项，空隧道 footprint 可在 V01 时顺带记录） | 已同步（README 状态与功能列表、仓库描述） | 0.1.0 节已写，`MARKETING_VERSION = 0.1.0` | 隐私清单已声明；依赖仅 swift-log，许可页 M4 起生成 |
+| M0 | v0.1.0 | 2026-10-29 | 8/8 完成 | core / ios / release 全绿 | V01 待验证（步骤见 §6.1） | 待真机（M0 无性能项，空隧道 footprint 可在 V01 时顺带记录） | README 状态与功能列表已同步；仓库描述需所有者手动更新（开发会话无仓库设置写权限） | 0.1.0 节已写，`MARKETING_VERSION = 0.1.0` | 隐私清单已声明；依赖仅 swift-log，许可页 M4 起生成 |
 
 ## 8. 测量记录
 
