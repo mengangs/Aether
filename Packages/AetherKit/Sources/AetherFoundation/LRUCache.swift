@@ -85,6 +85,17 @@ public struct LRUCache<Key: Hashable, Value> {
         tail = -1
     }
 
+    /// 移除并返回最久未使用的条目；为空时返回 nil。
+    @discardableResult
+    public mutating func popLeastRecent() -> (key: Key, value: Value)? {
+        guard tail >= 0 else { return nil }
+        let old = tail
+        unlink(old)
+        index[nodes[old].key] = nil
+        free.append(old)
+        return (nodes[old].key, nodes[old].value)
+    }
+
     /// 只保留最近使用的 `count` 条（内存压力时缩减）。
     public mutating func trim(to count: Int) {
         while index.count > max(0, count), tail >= 0 {

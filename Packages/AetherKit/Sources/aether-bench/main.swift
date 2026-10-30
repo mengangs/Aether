@@ -1,3 +1,4 @@
+import AetherDNS
 import AetherEngine
 import AetherFoundation
 import AetherProfile
@@ -237,6 +238,42 @@ results.append(
     Result(
         name: "profile parse+resolve (\(configLines.count) lines)", value: percentile(parseTimes, 0.5), unit: "ms",
         detail: "median of 5"))
+
+// MARK: DNS 报文编解码（13 §5.1）
+
+do {
+    let question = DNSQuestion(name: DNSName("www.example.com")!, type: .a)
+    var response = DNSMessage(header: DNSHeader(id: 1, isResponse: true, recursionAvailable: true))
+    response.questions = [question]
+    response.answers = [
+        DNSResourceRecord(name: question.name, type: .cname, ttl: 300, data: .cname(DNSName("edge.example.net")!))
+    ]
+    for index in 0..<4 {
+        response.answers.append(
+            DNSResourceRecord(
+                name: DNSName("edge.example.net")!, type: .a, ttl: 60, data: .a(IPv4Address(192, 0, 2, UInt8(index)))))
+    }
+    response.additionals = [DNSEDNS(udpPayloadSize: 1232).record]
+    let iterations = quick ? 20_000 : 200_000
+    let encodeStart = clock.now
+    var bytes: [UInt8] = []
+    for index in 0..<iterations {
+        response.header.id = UInt16(truncatingIfNeeded: index)
+        bytes = response.encode()
+    }
+    let encodeTime = seconds(clock.now - encodeStart) / Double(iterations) * 1e9
+    let decodeStart = clock.now
+    var decoded = 0
+    for _ in 0..<iterations {
+        if let message = try? DNSMessage.decode(bytes) { decoded += message.answers.count }
+    }
+    let decodeTime = seconds(clock.now - decodeStart) / Double(iterations) * 1e9
+    results.append(
+        Result(name: "dns encode (6 records)", value: encodeTime, unit: "ns", detail: "\(bytes.count) bytes"))
+    results.append(
+        Result(name: "dns decode (6 records)", value: decodeTime, unit: "ns", detail: "\(decoded / iterations) answers")
+    )
+}
 
 // MARK: 输出
 

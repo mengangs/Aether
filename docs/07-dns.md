@@ -33,6 +33,18 @@ flowchart LR
 | `ReverseTable` | 真实 IP → 域名 |
 | `DNSService` | 对外门面：`answer(query:)`、`resolve(host:purpose:)` |
 
+### 1.1 实现说明（M2）
+
+- 全部组件绑定到数据面 EventLoop；缓存过期与超时取 `EventLoop.now`，测试用 `EmbeddedEventLoop` 推进时间。
+- 上游应答**不重新编码**：转发时只改写原始报文中的事务 ID、问题节名称的大小写（与查询一致）与各记录的 TTL（缓存命中时减去已缓存的秒数，最低 1），其余字节原样返回。`DNSMessage` 对非结构化类型保留原始 RDATA，其中可能含压缩指针，因此解码得到的上游报文不得再编码。
+- 自己合成的应答（Host、Fake IP、空答案、PTR、FORMERR、SERVFAIL）复制查询的 RD / CD 位并置 RA；查询带 EDNS(0) 时附带声明 1232 字节的 OPT 记录。
+- `[Host]` 别名在应答流程中同样生效：A / AAAA 查询按别名目标解析后以原域名、TTL 60 应答。
+- 普通 UDP 上游每次查询使用新的 socket（随机源端口），只接受来自目标服务器、事务 ID 一致的应答。
+- `system` 上游的服务器列表由平台注入：隧道用 libresolv（M2-09），`aether-cli` 读 `/etc/resolv.conf`。
+- 同时进行的上游查询上限 256（06 §13）：超出时应答方回复 SERVFAIL，解析方以 `DNS-004` 失败；在途合并的查询不占名额。
+- TUN 上发往 DNS 地址的 TCP 连接由 `DNSStreamServerHandler` 处理：最多 16 个未完成的查询（超出后暂停读取），未成帧数据超过 64 KiB 时关闭连接。
+- M2 中 `encrypted-dns-server` 的 DoH / DoT 上游尚未实现（M3-11）：配置了也退回 `dns-server` 组，并记录一条 notice 日志。
+
 ## 2. 查询入口
 
 | 入口 | 处理 |
@@ -78,7 +90,7 @@ flowchart LR
 
 - 停止隧道时、以及运行中每 5 分钟（有变化时），把最近使用的 16,384 条映射写入 `State/fakeip.bin`（原子写）。
 - 启动时加载，保证系统或 App 缓存的 Fake IP 在隧道重启后仍可用。
-- 文件格式：魔数、格式版本、条目数，之后为 `(IPv4 偏移量 UInt32, 域名长度 UInt8, 域名 UTF-8)` 序列；格式不符时丢弃。
+- 文件格式：魔数 `AEFI`、格式版本（1 字节，当前为 1）、条目数（UInt32），之后为 `(IPv4 偏移量 UInt32, 域名长度 UInt8, 域名 UTF-8)` 序列，整数大端，最近使用在前；格式不符时整个丢弃，越界或落在保留地址上的条目逐条跳过。
 
 ### 3.3 真实 IP 例外
 

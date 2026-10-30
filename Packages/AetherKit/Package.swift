@@ -23,7 +23,14 @@ var targets: [Target] = [
         dependencies: ["AetherFoundation", .product(name: "Crypto", package: "swift-crypto")]
     ),
     .target(name: "AetherRules", dependencies: ["AetherFoundation"]),
-    .target(name: "AetherDNS", dependencies: ["AetherFoundation"]),
+    .target(
+        name: "AetherDNS",
+        dependencies: [
+            "AetherFoundation", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+        ]
+    ),
     .target(
         name: "AetherOutbound",
         dependencies: [
@@ -63,7 +70,14 @@ var targets: [Target] = [
     .testTarget(name: "AetherFoundationTests", dependencies: ["AetherFoundation", "AetherTestSupport"]),
     .testTarget(name: "AetherProfileTests", dependencies: ["AetherProfile", "AetherTestSupport"]),
     .testTarget(name: "AetherRulesTests", dependencies: ["AetherRules", "AetherProfile", "AetherTestSupport"]),
-    .testTarget(name: "AetherDNSTests", dependencies: ["AetherDNS"]),
+    .testTarget(
+        name: "AetherDNSTests",
+        dependencies: [
+            "AetherDNS", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOEmbedded", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+        ]
+    ),
     .testTarget(name: "AetherOutboundTests", dependencies: ["AetherOutbound"]),
     .testTarget(name: "AetherCertificatesTests", dependencies: ["AetherCertificates"]),
     .testTarget(name: "AetherScriptCoreTests", dependencies: ["AetherScriptCore"]),

@@ -225,6 +225,18 @@ struct LRUCacheTests {
         #expect(cache.get(1) == 1)
     }
 
+    @Test func popLeastRecent() {
+        var cache = LRUCache<String, Int>(capacity: 3)
+        #expect(cache.popLeastRecent() == nil)
+        cache.set("a", 1)
+        cache.set("b", 2)
+        _ = cache.get("a")
+        #expect(cache.popLeastRecent()?.key == "b")
+        #expect(cache.count == 1)
+        cache.set("c", 3)
+        #expect(cache.keysByRecency == ["c", "a"])
+    }
+
     @Test func randomizedAgainstReferenceModel() {
         var rng = SplitMix64(seed: 42)
         var cache = LRUCache<Int, Int>(capacity: 16)
