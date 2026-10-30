@@ -392,6 +392,20 @@ struct TLSTransportTests {
         try await group.shutdownGracefully()
     }
 
+    @Test(
+        "Certificate names match like NIOSSL: one wildcard in the first label, no IDNA wildcards",
+        arguments: [
+            ("tls.example.com", "tls.example.com", true), ("TLS.Example.COM.", "tls.example.com", true),
+            ("*.example.com", "tls.example.com", true), ("*.example.com", "example.com", false),
+            ("*.example.com", "a.b.example.com", false), ("t*.example.com", "tls.example.com", true),
+            ("*s.example.com", "tls.example.com", true), ("x*.example.com", "tls.example.com", false),
+            ("tls.*.com", "tls.example.com", false), ("*.example.com", "xn--bcher-kva.example.com", false),
+            ("xn--*.example.com", "xn--bcher-kva.example.com", false), ("other.example.com", "tls.example.com", false),
+        ])
+    func dnsNameMatching(pattern: String, target: String, expected: Bool) {
+        #expect(ServerIdentity.matchesDNSName(pattern, target: target) == expected)
+    }
+
     @Test("SNI follows the option")
     func serverName() {
         var options = TLSClientOptions()

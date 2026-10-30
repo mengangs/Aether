@@ -101,7 +101,8 @@ public enum TLSTransport {
                 // 自定义回调只在验证开启时才会被调用（NIOSSL 在 `.none` 时直接跳过）。
                 configuration.certificateVerification = .noHostnameVerification
             case .full:
-                configuration.certificateVerification = .fullVerification
+                // 只验证证书链；主机名在握手完成后由 `ServerIdentity` 比对，使各平台的主机名不匹配都报 TLS-002。
+                configuration.certificateVerification = .noHostnameVerification
             }
             if verification == .full, !options.additionalTrustRootsPEM.isEmpty {
                 let certificates = try options.additionalTrustRootsPEM.flatMap {
@@ -144,8 +145,11 @@ public enum TLSTransport {
             return eventLoop.makeFailedFuture(TLSError(.tlsNegotiationFailed, "TLS setup failed: \(error)"))
         }
         let promise = eventLoop.makePromise(of: (any Channel).self)
-        let waiter = TLSHandshakeWaiter(
-            promise: promise, fingerprintPinned: options.certificateFingerprintSHA256 != nil)
+        let pinned = options.certificateFingerprintSHA256 != nil
+        let identity: TLSHandshakeWaiter.IdentityCheck? =
+            pinned || options.skipCertificateVerification
+            ? nil : .init(hostname: options.effectiveServerName(serverHost: serverHost))
+        let waiter = TLSHandshakeWaiter(promise: promise, fingerprintPinned: pinned, identity: identity)
         do {
             try channel.pipeline.syncOperations.addHandler(handler)
             try channel.pipeline.syncOperations.addHandler(waiter)
@@ -197,15 +201,34 @@ private final class TLSHandshakeWaiter: ChannelInboundHandler, RemovableChannelH
 
     private let promise: EventLoopPromise<any Channel>
     private let fingerprintPinned: Bool
+    private let identity: IdentityCheck?
 
-    init(promise: EventLoopPromise<any Channel>, fingerprintPinned: Bool) {
+    /// 完整验证时握手后比对的服务器身份。
+    struct IdentityCheck {
+        var hostname: String?
+    }
+
+    init(promise: EventLoopPromise<any Channel>, fingerprintPinned: Bool, identity: IdentityCheck?) {
         self.promise = promise
         self.fingerprintPinned = fingerprintPinned
+        self.identity = identity
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if case .some(.handshakeCompleted) = event as? TLSUserEvent {
             let channel = context.channel
+            if let identity {
+                let leaf = try? context.pipeline.syncOperations.nioSSL_peerCertificate()?.toDERBytes()
+                guard let leaf,
+                    ServerIdentity.matches(
+                        leafDER: leaf, hostname: identity.hostname, remoteAddress: channel.remoteAddress)
+                else {
+                    let expected = identity.hostname ?? channel.remoteAddress?.ipAddress ?? "server"
+                    promise.fail(TLSError(.tlsHostnameMismatch, "Certificate does not match \(expected)"))
+                    context.close(promise: nil)
+                    return
+                }
+            }
             ChannelTuning.stopReading(channel)
             context.pipeline.syncOperations.removeHandler(context: context, promise: nil)
             promise.succeed(channel)

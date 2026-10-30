@@ -38,7 +38,7 @@ var targets: [Target] = [
             .product(name: "NIOPosix", package: "swift-nio"),
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
             .product(name: "NIOSSL", package: "swift-nio-ssl"), .product(name: "NIOTLS", package: "swift-nio"),
-            .product(name: "Crypto", package: "swift-crypto"),
+            .product(name: "Crypto", package: "swift-crypto"), .product(name: "X509", package: "swift-certificates"),
         ]
     ),
     .target(name: "AetherCertificates", dependencies: ["AetherFoundation"]),
