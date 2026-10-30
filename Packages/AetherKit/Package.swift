@@ -99,7 +99,8 @@ var targets: [Target] = [
         dependencies: [
             "AetherEngine", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOEmbedded", package: "swift-nio"),
-            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"), .product(name: "NIOHTTP1", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "NIOHTTP1", package: "swift-nio"),
         ]
     ),
 ]
