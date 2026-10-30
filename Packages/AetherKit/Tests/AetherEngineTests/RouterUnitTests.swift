@@ -221,6 +221,25 @@ struct RuntimeConfigurationTests {
         #expect(!ws.supportsUDP)
     }
 
+    @Test("VLESS nodes need tls=true and a valid UUID")
+    func compileVLESS() {
+        let configuration = compile(
+            """
+            [Proxy]
+            V = vless, vless.example.com, 443, username=b831381d-6324-4d53-ad4f-8cda48b30811, tls=true, ws=true, ws-path=/v, udp-relay=true
+            P = vless, vless.example.com, 443, username=b831381d-6324-4d53-ad4f-8cda48b30811
+            """)
+        guard case .proxy(let ok) = configuration.policies["V"], case .proxy(let plain) = configuration.policies["P"]
+        else {
+            Issue.record("nodes missing")
+            return
+        }
+        let connector = ok.connector as? VLESSConnector
+        #expect(connector?.server.tls != nil && connector?.server.webSocket?.path == "/v")
+        #expect(ok.supportsUDP)
+        #expect(plain.connector == nil && plain.unavailableReason?.contains("tls=true") == true)
+    }
+
     @Test("Node identity changes with credentials but not with the name")
     func identity() {
         let a = compile("[Proxy]\nA = socks5, 192.0.2.1, 1080, username=u, password=one\n[Rule]\nFINAL,A")

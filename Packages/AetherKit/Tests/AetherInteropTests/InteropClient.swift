@@ -78,13 +78,20 @@ struct InteropClient: Sendable {
             channel.close(promise: nil)
         }
         defer { timer.cancel() }
-        try await loop.submit {
-            try channel.pipeline.syncOperations.addHandler(ResponseReader(promise: promise))
-            try channel.syncOptions?.setOption(.autoRead, value: true)
-            channel.read()
-            let request = "GET \(path) HTTP/1.1\r\nHost: origin.example.com\r\nConnection: close\r\n\r\n"
-            channel.writeAndFlush(ByteBuffer(string: request), promise: nil)
-        }.get()
+        do {
+            try await loop.submit {
+                try channel.pipeline.syncOperations.addHandler(ResponseReader(promise: promise))
+                try channel.syncOptions?.setOption(.autoRead, value: true)
+                channel.read()
+                let request = "GET \(path) HTTP/1.1\r\nHost: origin.example.com\r\nConnection: close\r\n\r\n"
+                channel.writeAndFlush(ByteBuffer(string: request), promise: nil)
+            }.get()
+        } catch {
+            // 连接已被服务端关闭（如凭据错误）时装不上 Handler：promise 必须完成。
+            promise.fail(error)
+            channel.close(promise: nil)
+            throw error
+        }
         let response = try await promise.futureResult.get()
         channel.close(promise: nil)
         return response
@@ -111,6 +118,15 @@ struct InteropClient: Sendable {
             association.send(InteropUDPServers.query(), to: dnsTarget)
         }.get()
         _ = await Poll.until(timeout: .seconds(5)) { state.withLockedValue { $0.dns } }
+        // 预热：先发一个包并等它回来，使按目标建连的协议（VLESS、VMess）在突发之前建好到回显目标的连接；
+        // 统计的是稳定状态下的丢包。
+        try await loop.submit {
+            var packet = ByteBuffer()
+            packet.writeInteger(UInt32.max)
+            association.send(packet, to: echoTarget)
+        }.get()
+        _ = await Poll.until(timeout: .seconds(5)) { state.withLockedValue { $0.sequence.contains(.max) } }
+        state.withLockedValue { $0.sequence.removeAll() }
         for batch in 0..<20 {
             try await loop.submit {
                 for index in 0..<50 {

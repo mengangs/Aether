@@ -193,6 +193,25 @@ public final class RuntimeConfiguration: Sendable {
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
                     supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
+        case .vless(let uuid):
+            guard let tls = server.tls else {
+                return unavailable(
+                    spec, identity: identity, reason: "VLESS requires tls=true (06 §8.4)", notes: &notes)
+            }
+            guard
+                let connector = VLESSConnector(
+                    name: spec.name,
+                    server: ProxyServer(
+                        host: host, port: port, addressPreference: server.addressPreference, tls: tls,
+                        webSocket: spec.webSocket.map(webSocketOptions)),
+                    uuid: uuid, udpEnabled: spec.udpRelay)
+            else {
+                return unavailable(spec, identity: identity, reason: "Invalid VLESS UUID", notes: &notes)
+            }
+            return .proxy(
+                ProxyNode(
+                    name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
+                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
         default:
             notes.append("Proxy \(spec.name): \(spec.type) is supported from M3")
             return .proxy(

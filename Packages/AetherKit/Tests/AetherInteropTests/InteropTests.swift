@@ -98,6 +98,20 @@ struct InteropCase: Sendable, CustomTestStringConvertible {
                 server.webSocket = WebSocketClientOptions(path: "/trojan")
                 return TrojanConnector(name: "Trojan", server: server, password: password($0), udpEnabled: true)
             })
+        let uuid = "b831381d-6324-4d53-ad4f-8cda48b30811"
+        @Sendable func vlessUUID(_ valid: Bool) -> String { valid ? uuid : "00000000-0000-4000-8000-000000000000" }
+        cases.append(
+            InteropCase(name: "VLESS TLS", udp: true) {
+                VLESSConnector(
+                    name: "VLESS", server: Interop.server("XRAY_VLESS_TLS_PORT", tls: true), uuid: vlessUUID($0),
+                    udpEnabled: true)!
+            })
+        cases.append(
+            InteropCase(name: "VLESS WS+TLS", udp: true) {
+                var server = Interop.server("XRAY_VLESS_WS_TLS_PORT", tls: true)
+                server.webSocket = WebSocketClientOptions(path: "/vless")
+                return VLESSConnector(name: "VLESS", server: server, uuid: vlessUUID($0), udpEnabled: true)!
+            })
         let shadowsocks: [(String, ShadowsocksAEADMethod)] = [
             ("SS_AES128_PORT", .aes128GCM), ("SS_AES256_PORT", .aes256GCM), ("SS_CHACHA_PORT", .chacha20IETFPoly1305),
         ]

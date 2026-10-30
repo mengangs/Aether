@@ -31,6 +31,19 @@
         "network": "ws", "wsSettings": { "path": "/trojan" },
         "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] }
       }
+    },
+    {
+      "tag": "vless-tls", "listen": "127.0.0.1", "port": 21301, "protocol": "vless",
+      "settings": { "clients": [{ "id": "b831381d-6324-4d53-ad4f-8cda48b30811" }], "decryption": "none" },
+      "streamSettings": { "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] } }
+    },
+    {
+      "tag": "vless-ws-tls", "listen": "127.0.0.1", "port": 21302, "protocol": "vless",
+      "settings": { "clients": [{ "id": "b831381d-6324-4d53-ad4f-8cda48b30811" }], "decryption": "none" },
+      "streamSettings": {
+        "network": "ws", "wsSettings": { "path": "/vless" },
+        "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] }
+      }
     }
   ],
   "outbounds": [{ "protocol": "freedom" }]
