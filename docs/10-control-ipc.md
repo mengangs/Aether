@@ -85,6 +85,8 @@ public struct IPCError: Error, Codable, Sendable {
 
 实现（M3-07）：`testPolicies` 返回 `testTask`（任务 ID）；名称不存在或不是节点时 `IPC-011`。`getTestResults` 带 `taskID` 时返回该任务已完成的节点结果与 `pending`（未完成数），任务不存在时 `IPC-011`；不带时返回 `DIRECT` 与全部节点在 `since` 之后的最近结果。`listPolicies` 的 `selected` 为组当前解析到的成员（自动组按测速结果），节点的 `latencyMs` 为最近一次成功的延迟；状态快照 `primaryGroups` 的 `latencyMs` 为当前成员终点的最近延迟。
 
+实现（M3-08）：资源以 URL 标识（比较时规范化，见 [11 §5.2](11-storage.md#52-元数据)）。`updateResources` 返回 `resourceTask`（任务 ID 与本次要下载的资源数），只下载运行配置引用、且由隧道更新的资源（[11 §5.3](11-storage.md#53-下载)），未引用的 URL 忽略；下载在后台进行，结果写入 `Resources/` 的元数据，App 读元数据展示。更新任务（进行中 + 排队）最多 2 个，超出时返回 `IPC-012`。`resourcesChanged` 中有运行配置引用的资源（含只由 App 更新的 MMDB）时，隧道去抖 10 秒后重新加载；否则忽略。
+
 ### 2.3 IPC 错误码
 
 | 码 | 含义 |

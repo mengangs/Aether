@@ -18,6 +18,10 @@ public protocol TunnelClientProtocol: Sendable {
     /// `testPolicies`（docs/06 §9.2）：返回任务 ID，结果以 `testResults(taskID:since:)` 轮询。
     func testPolicies(names: [String]?, group: String?) async throws -> UInt64
     func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults
+    /// `updateResources`（docs/11 §5.4）：隧道自行下载；结果写入 `Resources/` 的元数据。
+    func updateResources(urls: [String]?) async throws -> ResourceTask
+    /// `resourcesChanged`：App 更新了缓存后通知隧道重新加载。
+    func resourcesChanged(urls: [String]) async throws
 }
 
 /// 基于 `NETunnelProviderSession.sendProviderMessage` 的传输。会话由 `TunnelController` 在加载配置后更新。
@@ -108,5 +112,13 @@ public actor TunnelClient: TunnelClientProtocol {
 
     public func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults {
         try await client.testResults(taskID: taskID, since: since)
+    }
+
+    public func updateResources(urls: [String]?) async throws -> ResourceTask {
+        try await client.updateResources(urls: urls)
+    }
+
+    public func resourcesChanged(urls: [String]) async throws {
+        try await client.resourcesChanged(urls: urls)
     }
 }

@@ -54,6 +54,9 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(AETHER_BUNDLE_ID_PREFIX)
             CFBundleURLSchemes: [$(AETHER_URL_SCHEME)]
+        # 外部资源后台刷新（docs/11 §5.4）；标识符与 AppEnvironment.resourceRefreshTaskIdentifier 一致。
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [$(AETHER_BUNDLE_ID_PREFIX).resources]
     entitlements:
       path: App/Aether.entitlements
       properties:

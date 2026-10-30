@@ -23,8 +23,8 @@ private let baseProfile = """
     FINAL,Main
     """
 
-/// 临时 App Group 容器与写入运行包的工具。
-private struct ContainerFixture {
+/// 临时 App Group 容器与写入运行包的工具（TunnelResourceTests 共用）。
+struct ContainerFixture {
     let container: SharedContainer
 
     init() {
@@ -60,9 +60,10 @@ private struct ContainerFixture {
             to: container.activeBundlePointer)
     }
 
-    func runtime(notifications: NIOLockedValueBox<[String]>, reasserts: NIOLockedValueBox<[(Int, Bool)]>)
-        -> TunnelRuntime
-    {
+    func runtime(
+        notifications: NIOLockedValueBox<[String]>, reasserts: NIOLockedValueBox<[(Int, Bool)]>,
+        configure: (inout TunnelRuntime.Hooks) -> Void = { _ in }
+    ) -> TunnelRuntime {
         var hooks = TunnelRuntime.Hooks()
         hooks.httpProxyAddress = ("127.0.0.1", 0)
         hooks.dnsUpstreams = { _ in LoopbackDNSUpstream() }
@@ -72,6 +73,7 @@ private struct ContainerFixture {
         }
         hooks.memory = { (40 * 1024 * 1024, 10 * 1024 * 1024) }
         hooks.systemDNSServers = { [IPAddress("192.0.2.53")!] }
+        configure(&hooks)
         return TunnelRuntime(container: container, notificationPrefix: "com.example.aether", hooks: hooks)
     }
 

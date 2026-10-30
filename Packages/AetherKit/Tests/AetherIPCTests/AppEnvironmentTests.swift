@@ -23,6 +23,7 @@ struct AppEnvironmentTests {
         #expect(environment.tunnelBundleIdentifier == "com.example.aether.tunnel")
         #expect(environment.urlScheme == "aether")
         #expect(environment.statusNotificationName == "com.example.aether.notify.status")
+        #expect(environment.resourceRefreshTaskIdentifier == "com.example.aether.resources")
         #expect(environment.logbookNotificationName == "com.example.aether.notify.logbook")
     }
 

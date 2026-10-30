@@ -34,6 +34,10 @@ public actor TunnelRuntime {
         public var dnsUpstreams: (@Sendable (DNSUpstreamSpec) -> (any DNSUpstream)?)?
         /// 测试用：HTTP 代理入站监听地址（为 nil 时用 `127.0.0.1:6171`）。
         public var httpProxyAddress: (host: String, port: Int)?
+        /// App 版本：外部资源下载的 `User-Agent: Aether/<版本>`（docs/11 §5.3）。
+        public var appVersion: String?
+        /// 等待（资源更新后的去抖重载）；测试注入。
+        public var sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
 
         public init() {}
     }
@@ -53,6 +57,16 @@ public actor TunnelRuntime {
     static let trafficBufferLimit = 4096
     /// 数据库清理间隔（docs/11 §4.2）。
     static let pruneInterval: TimeInterval = 6 * 3600
+    /// 隧道侧单个外部资源的下载上限（解压后，docs/02 §6）：超出的结果为 `deferred`，留给 App 更新。
+    static let resourceDownloadLimit = 4 << 20
+    /// 运行中检查到期资源的间隔（docs/11 §5.4）。
+    static let resourceCheckInterval: TimeInterval = 15 * 60
+    /// 资源更新后合并重载的去抖时间。
+    static let resourceReloadDelay: Duration = .seconds(10)
+    /// 隧道更新的资源种类；MMDB（上限 64 MiB）只由 App 更新，托管配置与远程模块写入 `Profiles/`、`Modules/`，只由 App 更新。
+    static let tunnelResourceKinds: Set<ResourceKind> = [.ruleSet, .domainSet, .policyPath, .script, .mapLocalFile]
+    /// 资源更新任务（运行中 + 排队）上限：超出时 `updateResources` 返回 `IPC-012`，定期检查跳过。
+    static let resourceQueueLimit = 2
 
     public let container: SharedContainer
     let notificationPrefix: String
@@ -71,6 +85,17 @@ public actor TunnelRuntime {
     private var logbook: LogbookWriter?
     private let trafficBuffer = Locked<[TrafficDelta]>([])
     private var lastPrune: Date?
+    /// 运行配置引用的、由隧道更新的远程资源。
+    private(set) var resourceRequests: [ResourceRequest] = []
+    /// 运行配置引用的全部远程资源（规范化 URL），用于判断 `resourcesChanged` 是否需要重载。
+    private var referencedResources: Set<String> = []
+    private var lastResourceCheck: Date?
+    private var resourceTask: Task<Void, Never>?
+    private var resourceQueueDepth = 0
+    private var nextResourceTaskID: UInt64 = 0
+    private var resourceReload: Task<Void, Never>?
+    /// 因资源变化触发的重载次数（测试观察）。
+    private(set) var resourceReloadCount = 0
 
     public init(
         container: SharedContainer, notificationPrefix: String, hooks: Hooks = Hooks(),
@@ -102,7 +127,8 @@ public actor TunnelRuntime {
         openDatabase()
         do {
             let bundle = try RunBundle.loadActive(from: container)
-            let configuration = try compile(bundle)
+            let (configuration, resolved) = try compile(bundle)
+            trackResources(resolved)
             runtimeState =
                 JSONStateFile.read(RuntimeStateFile.self, from: container.runtimeStateFile) ?? RuntimeStateFile()
             let selections = JSONStateFile.read(SelectionsFile.self, from: container.selectionsFile) ?? SelectionsFile()
@@ -182,6 +208,11 @@ public actor TunnelRuntime {
             try? FileManager.default.createDirectory(at: container.state, withIntermediateDirectories: true)
             try? Data(bytes).write(to: container.fakeIPSnapshotFile, options: .atomic)
         }
+        // 进行中的资源下载在引擎停止后失败；取消使其不再开始新的下载。
+        resourceTask?.cancel()
+        resourceReload?.cancel()
+        resourceReload = nil
+        lastResourceCheck = nil
         await engine.stop()
         self.engine = nil
         configuration = nil
@@ -226,6 +257,7 @@ public actor TunnelRuntime {
             throw IPCError(error)
         }
         self.configuration = configuration
+        trackResources(resolved)
         status.profile = ProfileSummary(
             id: bundle.manifest.profileID, name: bundle.manifest.profileName, revision: bundle.manifest.revision)
         let newSettings = TunnelNetworkSettingsSpec.make(from: configuration)
@@ -308,6 +340,23 @@ public actor TunnelRuntime {
             return .testTask(TestTask(id: id))
         case .getTestResults(let taskID, let since):
             return .testResults(try await testResults(taskID: taskID, since: since))
+        case .updateResources(let urls):
+            _ = try requireEngine()
+            var requests = resourceRequests
+            if let urls {
+                let wanted = Set(urls.map(ResourceCache.normalize))
+                requests = requests.filter { wanted.contains(ResourceCache.normalize($0.url)) }
+            }
+            guard resourceQueueDepth < Self.resourceQueueLimit else {
+                throw IPCError(code: .ipcInvalidState, message: "A resource update is already queued")
+            }
+            return .resourceTask(ResourceTask(id: startResourceUpdate(requests, force: true), count: requests.count))
+        case .resourcesChanged(let urls):
+            _ = try requireEngine()
+            if urls.contains(where: { referencedResources.contains(ResourceCache.normalize($0)) }) {
+                scheduleResourceReload()
+            }
+            return .empty
         case .getRequests(let kind, let sinceID, let limit):
             let requests = try requireEngine().requests
             let pageSize = min(max(limit, 1), IPCProtocol.maxPageSize)
@@ -451,11 +500,129 @@ public actor TunnelRuntime {
         await flushPersistence()
     }
 
-    /// 定期维护（运行中每 30 秒，平台驱动）：刷新状态快照的流量字段、写出缓冲的流量增量与日志簿、每 6 小时清理数据库。
+    /// 定期维护（运行中每 30 秒，平台驱动）：刷新状态快照的流量字段、写出缓冲的流量增量与日志簿、每 6 小时清理数据库、
+    /// 每 15 分钟在后台检查到期的外部资源。
     public func maintenance() async {
         writeStatus(notify: false, traffic: await trafficSummary())
         await flushPersistence()
         await prune()
+        checkResources()
+    }
+
+    // MARK: - 外部资源（docs/11 §5.3–§5.4）
+
+    /// 运行配置引用的远程资源：去重（规范化 URL）；间隔取资源自身的 `update-interval`，否则为 `resource-update-interval`。
+    static func resourceRequests(_ resolved: ResolvedProfile) -> [ResourceRequest] {
+        var seen = Set<String>()
+        return resolved.externalResources.compactMap { reference in
+            guard reference.isRemote, let kind = ResourceKind(rawValue: reference.kind.rawValue),
+                tunnelResourceKinds.contains(kind), seen.insert(ResourceCache.normalize(reference.url)).inserted
+            else { return nil }
+            return ResourceRequest(
+                url: reference.url, kind: kind,
+                updateInterval: reference.updateInterval ?? resolved.general.resourceUpdateInterval)
+        }
+    }
+
+    private func trackResources(_ resolved: ResolvedProfile) {
+        resourceRequests = Self.resourceRequests(resolved)
+        referencedResources = Set(
+            resolved.externalResources.filter(\.isRemote).map { ResourceCache.normalize($0.url) })
+    }
+
+    /// 距上次检查满 15 分钟（或启动后首次）时开始一次到期资源的更新；已有更新在进行时跳过。
+    private func checkResources() {
+        let now = clock()
+        guard engine != nil, status.state == .running, !resourceRequests.isEmpty, resourceQueueDepth == 0,
+            lastResourceCheck.map({ now.timeIntervalSince($0) >= Self.resourceCheckInterval }) ?? true
+        else { return }
+        lastResourceCheck = now
+        _ = startResourceUpdate(resourceRequests, force: false)
+    }
+
+    /// 在后台更新（排在进行中的更新之后），返回任务 ID。
+    private func startResourceUpdate(_ requests: [ResourceRequest], force: Bool) -> UInt64 {
+        nextResourceTaskID += 1
+        resourceQueueDepth += 1
+        let previous = resourceTask
+        resourceTask = Task {
+            // 取消（停止隧道）同时取消排在前面的更新。
+            await withTaskCancellationHandler {
+                await previous?.value
+            } onCancel: {
+                previous?.cancel()
+            }
+            await self.runResourceUpdate(requests, force: force)
+        }
+        return nextResourceTaskID
+    }
+
+    private func runResourceUpdate(_ requests: [ResourceRequest], force: Bool) async {
+        defer { resourceQueueDepth -= 1 }
+        guard let engine, !Task.isCancelled, !requests.isEmpty else { return }
+        let userAgent = "Aether/\(hooks.appVersion ?? "0")"
+        let updater = ResourceUpdater(
+            cache: ResourceCache(container: container),
+            fetch: { url, etag, lastModified, limit in
+                try Task.checkCancellation()
+                return try await engine.fetchResource(
+                    url, etag: etag, lastModified: lastModified, limit: limit, userAgent: userAgent)
+            },
+            validate: ResourceValidation.validate, clock: clock, downloadLimit: Self.resourceDownloadLimit)
+        let outcomes = await updater.update(requests, force: force)
+        var updated = 0
+        for (request, outcome) in zip(requests, outcomes) {
+            // 日志与日志簿只写主机名（docs/02 §8.2）；完整 URL 与错误在资源元数据中。
+            let host = URLComponents(string: request.url)?.host ?? "?"
+            switch outcome {
+            case .updated:
+                updated += 1
+            case .failed(let code, let message):
+                log(
+                    .warning, .resource,
+                    "Updating a \(request.kind.rawValue) from \(host) failed; the cached copy stays",
+                    code: code, details: message)
+            case .deferred:
+                logger.notice(
+                    "A \(request.kind.rawValue) from \(host) exceeds the tunnel download limit; left to the app")
+            case .notModified, .skipped:
+                break
+            }
+        }
+        if updated > 0 {
+            log(.info, .resource, "Updated \(updated) external resource(s)")
+            scheduleResourceReload()
+        }
+        await flushLogbook()
+    }
+
+    /// 去抖 10 秒后重新加载运行配置（合并多次资源更新）。
+    private func scheduleResourceReload() {
+        resourceReload?.cancel()
+        let sleep = hooks.sleep
+        resourceReload = Task {
+            do {
+                try await sleep(Self.resourceReloadDelay)
+            } catch {
+                return
+            }
+            await self.reloadForResources()
+        }
+    }
+
+    private func reloadForResources() async {
+        resourceReload = nil
+        guard status.state == .running, let revision = status.profile?.revision else { return }
+        resourceReloadCount += 1
+        do {
+            let result = try await reload(expectedRevision: revision)
+            if result.errorCount == 0 {
+                log(.info, .resource, "Configuration reloaded with updated resources")
+            }
+        } catch {
+            log(.warning, .resource, "Reloading after a resource update failed: \(IPCError(error).message)")
+        }
+        await flushLogbook()
     }
 
     // MARK: - 状态快照（docs/10 §3）
@@ -666,7 +833,7 @@ public actor TunnelRuntime {
     }
 
     /// 编译运行配置；有 error 级诊断时抛出首个错误的码（`CFG-…`），`details` 附诊断摘要。
-    private func compile(_ bundle: LoadedBundle) throws -> RuntimeConfiguration {
+    private func compile(_ bundle: LoadedBundle) throws -> (RuntimeConfiguration, ResolvedProfile) {
         let resolved = resolve(bundle)
         guard resolved.isCommittable else {
             let errors = resolved.diagnostics.filter { $0.severity == .error }
@@ -675,8 +842,9 @@ public actor TunnelRuntime {
                 code: errors.first?.code ?? .ipcNoActiveBundle,
                 message: "The active profile has \(errors.count) error(s)", details: ["diagnostics": summary])
         }
-        return RuntimeConfiguration.compile(
+        let configuration = RuntimeConfiguration.compile(
             resolved, profileID: bundle.manifest.profileID, profileName: bundle.manifest.profileName)
+        return (configuration, resolved)
     }
 
     static func summaries(_ diagnostics: [Diagnostic]) -> [DiagnosticSummary] {

@@ -52,16 +52,16 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 
 | 模块 | 平台 | 主要依赖 | 职责 |
 | --- | --- | --- | --- |
-| `AetherFoundation` | 全部 | swift-log、swift-collections | 基础类型：`IPAddress`、`CIDR`、`Endpoint`、`Hostname`、LRU、错误码、日志工具、字节工具、cron 表达式；规则词汇类型 `RuleSpec` / `RuleCondition`（由 `AetherProfile` 产出、`AetherRules` 编译，见 05 §1） |
+| `AetherFoundation` | 全部 | swift-log、swift-collections | 基础类型：`IPAddress`、`CIDR`、`Endpoint`、`Hostname`、LRU、错误码、日志工具、字节工具、cron 表达式、gzip 解压（`Inflate`）与 SHA-256 / SHA-224（`SHA2`）；规则词汇类型 `RuleSpec` / `RuleCondition`（由 `AetherProfile` 产出、`AetherRules` 编译，见 05 §1） |
 | `AetherProfile` | 全部 | Yams | 配置的无损解析、类型化模型、模块叠加、校验与诊断、订阅与节点格式导入 |
 | `AetherRules` | 全部 | — | 规则编译与匹配、规则集与域名集、MMDB 读取器 |
 | `AetherDNS` | 全部 | swift-nio | DNS 报文编解码、上游客户端、缓存、Fake IP 池、Host 映射 |
 | `AetherOutbound` | 全部 | swift-nio、swift-nio-ssl、swift-certificates、swift-crypto、CBlake3 | 出站连接器与各代理协议、传输层（TLS、WebSocket、obfs） |
 | `AetherCertificates` | 全部 | swift-certificates、swift-crypto | MitM 的 CA 生成、叶子证书签发、`.mobileconfig` 生成、CA 备份格式加解密 |
 | `AetherScriptCore` | 全部 | — | `ScriptRuntime` 协议、脚本值类型、`ScriptHostServices` 协议（网络请求、存储、通知、GeoIP 等由宿主注入）、cron 表达式解析 |
-| `AetherHTTP` | 全部 | swift-nio（HTTP1/HTTP2）、swift-nio-http2、swift-nio-ssl | 经出站连接器的最小 HTTP 客户端（测速 `HTTPProbe`）、DoH / DoT 客户端、TLS 终止、HTTP 处理管线、重写、抓包、调用 `ScriptRuntime` |
+| `AetherHTTP` | 全部 | swift-nio（HTTP1/HTTP2）、swift-nio-http2、swift-nio-ssl | 经出站连接器的最小 HTTP 客户端（测速 `HTTPProbe`、资源下载 `HTTPFetch`）、DoH / DoT 客户端、TLS 终止、HTTP 处理管线、重写、抓包、调用 `ScriptRuntime` |
 | `AetherEngine` | 全部 | 以上全部 + `AetherIPC`、`AetherStore` | 入站、`Router`、流管理、策略组、统计、运行配置装配与热替换、IPC 命令处理 |
-| `AetherIPC` | 全部 | — | App ↔ 隧道消息类型、`AppEnvironment`、共享路径、状态快照模型、Darwin 通知名 |
+| `AetherIPC` | 全部 | — | App ↔ 隧道消息类型、`AppEnvironment`、共享路径、状态快照模型、Darwin 通知名、外部资源缓存与更新（`ResourceCache`、`ResourceUpdater`，下载方式由两侧注入） |
 | `AetherStore` | 全部 | GRDB | 流量统计、请求历史、日志簿、脚本存储的数据库访问 |
 | `AetherScript` | Apple | JavaScriptCore | `ScriptRuntime` 的 JavaScriptCore 实现与 JS API 桥接 |
 | `AetherControl` | Apple | NetworkExtension | App 侧隧道管理（`TunnelController`）、IPC 客户端（`TunnelClient`）、状态观察；App 与小组件共用 |

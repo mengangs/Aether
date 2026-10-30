@@ -119,6 +119,7 @@ public final class PacketTunnelCore: @unchecked Sendable {
                 rxPackets: UInt64(max(0, statistics.rxPackets)), rxBytes: UInt64(max(0, statistics.rxBytes)))
         }
         hooks.systemDNSServers = SystemDNS.servers
+        hooks.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
         hooks.network = { pathMonitor.current }
         hooks.ipv4Available = { pathMonitor.current.supportsIPv4 }
         hooks.reassert = { [weak self] settings, hev, restartHev in

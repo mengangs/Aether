@@ -139,6 +139,21 @@ public actor IPCClient {
         return results
     }
 
+    /// `updateResources`：返回任务。
+    public func updateResources(urls: [String]? = nil) async throws -> ResourceTask {
+        guard case .resourceTask(let task) = try await send(.updateResources(urls: urls)) else {
+            throw unexpected("updateResources")
+        }
+        return task
+    }
+
+    /// `resourcesChanged`。
+    public func resourcesChanged(urls: [String]) async throws {
+        guard case .empty = try await send(.resourcesChanged(urls: urls)) else {
+            throw unexpected("resourcesChanged")
+        }
+    }
+
     private func unexpected(_ command: String) -> IPCError {
         IPCError(code: .ipcUndecodable, message: "\(command) returned an unexpected payload")
     }

@@ -235,7 +235,7 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
 {
   "schemaVersion": 1,
   "url": "https://example.com/rules/ads.list",
-  "kind": "ruleSet",
+  "kind": "rule-set",
   "fetchedAt": "2026-10-30T08:00:00Z",
   "lastAttemptAt": "2026-10-30T08:00:00Z",
   "lastError": null,
@@ -243,9 +243,15 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
   "lastModified": "Thu, 29 Oct 2026 10:00:00 GMT",
   "sha256": "…",
   "size": 123456,
-  "updateInterval": 86400
+  "updateInterval": 86400,
+  "failures": 0,
+  "nextAttemptAt": null
 }
 ```
+
+- `kind` 取值与配置模型 `ExternalResourceRef.Kind` 相同（`rule-set`、`domain-set`、`policy-path`、`script`、`geoip-db`、`ipasn-db`、`map-local`、`managed-profile`），另有 App 用的 `remote-module`。
+- `failures` 为连续失败次数，`nextAttemptAt` 为退避期结束时间；成功后清零。`lastError` 为 `RES-…: 说明`。
+- 缓存键的规范化 URL：协议与主机名小写，去掉默认端口（80 / 443）与片段，路径与查询串原样保留。读取时核对元数据中的 URL，不一致（键冲突）视为没有缓存；内容文件长度与 `size` 不符时同样视为没有缓存。
 
 ### 5.3 下载
 
@@ -254,6 +260,13 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
 - 校验通过后才原子替换缓存；失败保留旧缓存，记录 `lastError` 并写日志簿（`RES` 类错误码）。
 - 失败重试按指数退避：5 分钟起，上限 1 小时。
 - App 使用 `URLSession`（隧道运行时，App 自身的请求会按规则经过隧道）。隧道使用引擎自己的 HTTP 客户端，出站策略由 `[General] resource-fetch-policy` 决定（默认 `DIRECT`）。
+
+实现（M3-08）：
+- 共用部分在 `AetherIPC`：`ResourceCache`（文件布局、原子替换）与 `ResourceUpdater`（条件请求、解压、校验、退避、到期判断，同时最多 4 个下载）；下载方式与内容校验由两侧注入。gzip 用 `AetherFoundation` 的纯 Swift `Inflate`（RFC 1951 / 1952，多成员，校验 CRC-32 与长度），SHA-256 用 `AetherFoundation.SHA2`。
+- 校验：文本类（规则集、域名集、订阅、脚本、托管配置、模块）必须是非空 UTF-8，否则 `RES-003`；规则集与域名集再按 [05 §6](05-rule-engine.md#6-规则集与域名集) 解析，没有有效条目为 `RES-011`、超出条目上限为 `RES-010`；MMDB 检查文件末尾 128 KiB 内的元数据标记（完整的元数据校验随 M3-10 的读取器）；订阅"至少 1 个可解析节点"随 M3-09 的解析器加入。
+- 网络与 TLS 错误记为 `RES-001`，原错误码写在说明中（如 `RES-001: NET-002: …`）。更新被取消（后台刷新到时）不计为失败，不改动元数据。
+- 隧道：用 `AetherHTTP.HTTPFetch`（HTTP/1.1，`Content-Length` / `chunked` / 读到关闭三种正文，最多 5 次重定向且拒绝 HTTPS 降级到 HTTP），`User-Agent: Aether/<版本>`。按内存预算（[02 §6](02-architecture.md#6-内存预算)）单个资源下载上限为 4 MiB（解压后）：超出的不记失败、不改动元数据，留给 App 更新。MMDB（上限 64 MiB）只由 App 更新；托管配置与远程模块写入 `Profiles/`、`Modules/`，只由 App 处理。失败写日志簿（`resource` 类，只含主机名）。
+- App：`URLSession` 无数据超时 20 秒，正文超过上限立即停止（`RES-010`）。
 
 ### 5.4 调度
 
@@ -265,6 +278,8 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
 | 隧道运行中 | 每 15 分钟检查到期资源并更新；成功后去抖 10 秒合并重载运行配置 |
 | App 更新了运行中配置引用的资源 | IPC `resourcesChanged(ids)`，隧道重新加载 |
 | 用户手动"全部更新" | App 下载 + 隧道运行时 IPC `updateResources` |
+
+实现（M3-08）：隧道在平台每 30 秒一次的维护中检查，距上次检查满 15 分钟（启动后首次立即）时在后台更新到期资源，有资源被替换时去抖 10 秒后以当前修订号重新加载。App 的后台刷新标识符为 `AppEnvironment.resourceRefreshTaskIdentifier`（`<Bundle ID>.resources`，Info.plist 的 `BGTaskSchedulerPermittedIdentifiers` 与 `UIBackgroundModes: fetch`），进入后台时按最近的到期时间（不早于 15 分钟后）提交；导入与切换配置后在后台下载其引用的全部资源，不阻塞提交与重载；App 同一时间只运行一次更新，进行中时新的触发直接返回（外部资源页的进度与"全部更新"随 M3-14）。
 
 ## 6. 提交运行包
 
@@ -312,7 +327,10 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
 
 | 码 | 含义 | 处理 |
 | --- | --- | --- |
-| `RES-010` | 外部资源超出大小上限（32 MiB，解压后）或条目上限（规则集 / 域名集 50 万条） | 拒绝加载，保留旧缓存；写日志簿；引用它的规则视为不可判定 |
+| `RES-001` | 外部资源下载失败：网络或 TLS 错误、超时、非 2xx / 304 状态码、重定向过多或 HTTPS 降级 | 保留旧缓存，记录 `lastError` 并退避重试；写日志簿 |
+| `RES-002` | 外部资源解压失败（gzip 损坏、校验不符） | 同上 |
+| `RES-003` | 外部资源内容无效（不是 UTF-8、为空、不是 MMDB） | 同上 |
+| `RES-010` | 外部资源超出大小上限（按种类，见 §5.1，解压后）或条目上限（规则集 / 域名集 50 万条） | 拒绝加载，保留旧缓存；写日志簿；引用它的规则视为不可判定 |
 | `RES-011` | 外部资源没有任何有效条目 | 同上 |
 | `STO-001` | App Group 容器不可用：entitlements 中缺少 App Group，或签名时使用的 App Group 与 Info.plist 中的不一致 | App 显示明确的错误页并给出排查提示（[03 §8.4](03-project-setup.md#84-自行签名)）；隧道启动失败并返回该码。均不得崩溃 |
 | `STO-002` | 数据库无法打开或迁移失败（目录不可写、文件损坏、迁移出错） | 隧道照常运行但不写统计与日志簿（只写文件日志）；App 的统计与日志簿页显示错误。均不得崩溃 |

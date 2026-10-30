@@ -131,6 +131,9 @@ public struct AppEnvironment: Sendable, Equatable {
     public var statusNotificationName: String { "\(bundleIdentifierPrefix).notify.status" }
     /// 日志簿新增事件通知（docs/10 §3）。
     public var logbookNotificationName: String { "\(bundleIdentifierPrefix).notify.logbook" }
+    /// 外部资源后台刷新的 `BGAppRefreshTask` 标识符（docs/11 §5.4），与 Info.plist 的
+    /// `BGTaskSchedulerPermittedIdentifiers`（`$(AETHER_BUNDLE_ID_PREFIX).resources`）一致。
+    public var resourceRefreshTaskIdentifier: String { "\(bundleIdentifierPrefix).resources" }
 }
 
 /// `AppEnvironment` 读取失败（`IPC-020`）。

@@ -33,6 +33,12 @@ public enum ResourceLoadError: AetherErrorProtocol, Equatable {
 }
 
 extension AetherErrorCode {
+    /// 外部资源下载失败（网络错误、超时、非 2xx / 304 的状态码）。
+    public static let resDownloadFailed: AetherErrorCode = "RES-001"
+    /// 外部资源解压失败（gzip 损坏）。
+    public static let resDecompressionFailed: AetherErrorCode = "RES-002"
+    /// 外部资源内容无效（不是 UTF-8、无法解析等）。
+    public static let resInvalidContent: AetherErrorCode = "RES-003"
     /// 资源超出大小或条目上限。
     public static let resTooLarge: AetherErrorCode = "RES-010"
     /// 资源没有有效条目。
@@ -52,4 +58,17 @@ public struct ListLoadStatistics: Sendable, Equatable {
     public init() {}
 
     public var skipped: Int { invalid + unsupported + disallowed }
+}
+
+/// 外部资源下载或校验失败的一般错误（`RES-001`–`RES-003`）。
+public struct ResourceError: AetherErrorProtocol, Equatable {
+    public let code: AetherErrorCode
+    public let details: String
+
+    public init(_ code: AetherErrorCode, _ details: String) {
+        self.code = code
+        self.details = details
+    }
+
+    public var debugDetails: String { details }
 }

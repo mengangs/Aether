@@ -70,6 +70,10 @@ public struct MockTunnelClient: TunnelClientProtocol {
     public func traffic() async throws -> TrafficReport { try value { fixtures.traffic } }
 
     public func testPolicies(names: [String]?, group: String?) async throws -> UInt64 { try value { 1 } }
+    public func updateResources(urls: [String]?) async throws -> ResourceTask {
+        try value { ResourceTask(id: 1, count: urls?.count ?? 0) }
+    }
+    public func resourcesChanged(urls: [String]) async throws { try value {} }
 
     /// 返回示例节点的固定测速结果（失败的节点带错误码）。
     public func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults {

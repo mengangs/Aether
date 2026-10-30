@@ -30,6 +30,11 @@ public enum IPCCommand: Sendable, Equatable {
     case testPolicies(names: [String]?, group: String?)
     /// 测速结果：`taskID` 给出时为该任务的结果，否则为全部节点最近的结果（`since` 之后的）。
     case getTestResults(taskID: UInt64?, since: Date?)
+    /// 隧道自行下载外部资源（docs/11 §5.4）：`urls` 为空时更新运行配置引用的全部资源（忽略到期时间），否则只更新其中
+    /// 被引用的。立即返回任务 ID；结果写入 `Resources/` 的元数据。
+    case updateResources(urls: [String]?)
+    /// App 已更新这些资源的缓存：其中有运行配置引用的时，隧道（去抖后）重新加载。
+    case resourcesChanged(urls: [String])
 
     /// 命令名，即编码中的 `type`。
     public var name: String {
@@ -45,6 +50,8 @@ public enum IPCCommand: Sendable, Equatable {
         case .getRequests: return "getRequests"
         case .testPolicies: return "testPolicies"
         case .getTestResults: return "getTestResults"
+        case .updateResources: return "updateResources"
+        case .resourcesChanged: return "resourcesChanged"
         }
     }
 }
@@ -88,6 +95,10 @@ extension IPCCommand: Codable {
         var since: Date?
     }
 
+    private struct ResourcesParams: Codable {
+        var urls: [String]?
+    }
+
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
@@ -116,6 +127,9 @@ extension IPCCommand: Codable {
         case "getTestResults":
             let value = try container.decodeIfPresent(TestResultsParams.self, forKey: .params)
             self = .getTestResults(taskID: value?.taskID, since: value?.since)
+        case "updateResources":
+            self = .updateResources(urls: try container.decodeIfPresent(ResourcesParams.self, forKey: .params)?.urls)
+        case "resourcesChanged": self = .resourcesChanged(urls: try params(ResourcesParams.self).urls ?? [])
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown command \(type)")
@@ -142,6 +156,10 @@ extension IPCCommand: Codable {
             try container.encode(TestParams(names: names, group: group), forKey: .params)
         case .getTestResults(let taskID, let since):
             try container.encode(TestResultsParams(taskID: taskID, since: since), forKey: .params)
+        case .updateResources(let urls):
+            try container.encode(ResourcesParams(urls: urls), forKey: .params)
+        case .resourcesChanged(let urls):
+            try container.encode(ResourcesParams(urls: urls), forKey: .params)
         }
     }
 }
@@ -223,6 +241,7 @@ public enum IPCPayload: Sendable, Equatable {
     case requests(RequestPage)
     case testTask(TestTask)
     case testResults(TestResults)
+    case resourceTask(ResourceTask)
 }
 
 extension IPCPayload: Codable {
@@ -247,6 +266,7 @@ extension IPCPayload: Codable {
         case "requests": self = .requests(try value(RequestPage.self))
         case "testTask": self = .testTask(try value(TestTask.self))
         case "testResults": self = .testResults(try value(TestResults.self))
+        case "resourceTask": self = .resourceTask(try value(ResourceTask.self))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown payload \(type)")
@@ -282,6 +302,9 @@ extension IPCPayload: Codable {
         case .testResults(let results):
             try container.encode("testResults", forKey: .type)
             try container.encode(results, forKey: .value)
+        case .resourceTask(let task):
+            try container.encode("resourceTask", forKey: .type)
+            try container.encode(task, forKey: .value)
         }
     }
 }

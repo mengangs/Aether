@@ -200,6 +200,17 @@ public struct TestTask: Codable, Sendable, Equatable {
     }
 }
 
+/// `updateResources`：隧道侧的资源更新任务。`count` 为本次要下载的资源数（未被运行配置引用的 URL 不计入）。
+public struct ResourceTask: Codable, Sendable, Equatable {
+    public var id: UInt64
+    public var count: Int
+
+    public init(id: UInt64, count: Int) {
+        self.id = id
+        self.count = count
+    }
+}
+
 /// `getTestResults`：每个节点的延迟或错误与时间。
 public struct TestResults: Codable, Sendable, Equatable {
     public struct Entry: Codable, Sendable, Equatable {

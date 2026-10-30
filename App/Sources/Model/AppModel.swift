@@ -5,7 +5,7 @@ import AetherKeychain
 import Foundation
 import Observation
 
-/// 根模型（docs/12 §12）：运行环境、隧道控制、配置库与首页的 1 Hz 状态轮询。
+/// 根模型（docs/12 §12）：运行环境、隧道控制、配置库、外部资源更新与首页的 1 Hz 状态轮询。
 @MainActor
 @Observable
 final class AppModel {
@@ -20,6 +20,10 @@ final class AppModel {
     @ObservationIgnored let client: (any TunnelClientProtocol)?
     /// 配置库；运行环境不可用时为 nil。
     let profiles: ProfileStore?
+    /// 外部资源更新（docs/11 §5.4）；运行环境不可用时为 nil。
+    let resources: ResourceRefresher?
+    /// 后台刷新的任务标识符（`AppEnvironment.resourceRefreshTaskIdentifier`）。
+    @ObservationIgnored private let refreshIdentifier: String?
 
     /// 隧道通过 IPC 报告的状态；隧道未运行时为 nil。
     private(set) var tunnelStatus: TunnelStatus?
@@ -28,11 +32,16 @@ final class AppModel {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var isForeground = true
 
-    init(controller: any TunnelControlling, client: any TunnelClientProtocol, profiles: ProfileStore? = nil) {
+    init(
+        controller: any TunnelControlling, client: any TunnelClientProtocol, profiles: ProfileStore? = nil,
+        resources: ResourceRefresher? = nil, refreshIdentifier: String? = nil
+    ) {
         self.failure = nil
         self.controller = controller
         self.client = client
         self.profiles = profiles
+        self.resources = resources
+        self.refreshIdentifier = refreshIdentifier
     }
 
     init(failure: StartupFailure) {
@@ -40,6 +49,8 @@ final class AppModel {
         self.controller = nil
         self.client = nil
         self.profiles = nil
+        self.resources = nil
+        self.refreshIdentifier = nil
     }
 
     /// 隧道是否已连接（依赖隧道的页面据此显示"未连接"占位）。
@@ -76,24 +87,37 @@ final class AppModel {
         let logger = Logger(label: "AetherApp")
         let resolved = environment.resolvingKeychainAccessGroupForCurrentProcess(logger: logger)
         let controller = TunnelController(environment: resolved)
-        return AppModel(
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let resources = ResourceRefresher(container: container, appVersion: version)
+        let model = AppModel(
             controller: controller, client: TunnelClient(transport: controller.transport),
-            profiles: ProfileStore(container: container))
+            profiles: ProfileStore(container: container, resources: resources), resources: resources,
+            refreshIdentifier: environment.resourceRefreshTaskIdentifier)
+        BackgroundRefresh.register(identifier: environment.resourceRefreshTaskIdentifier, model: model)
+        return model
     }
 
     func start() async {
         await controller?.refresh()
         startPolling()
+        resources?.refreshDue(client: client)
     }
 
     /// 前台以 1 Hz 刷新状态，进入后台停止（docs/10 §3）。
     func setForeground(_ foreground: Bool) {
+        let wasForeground = isForeground
         isForeground = foreground
         if foreground {
             startPolling()
+            if !wasForeground {
+                resources?.refreshDue(client: client)
+            }
         } else {
             pollTask?.cancel()
             pollTask = nil
+            if let resources, let refreshIdentifier {
+                Task { await BackgroundRefresh.schedule(identifier: refreshIdentifier, resources: resources) }
+            }
         }
     }
 

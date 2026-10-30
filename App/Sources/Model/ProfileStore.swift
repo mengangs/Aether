@@ -30,12 +30,15 @@ final class ProfileStore {
     static let maxDownloadBytes = ProfileLibrary.maxTextBytes
 
     let library: ProfileLibrary
+    /// 导入与切换后下载配置引用的外部资源（docs/11 §5.4）；为 nil 时不下载（预览）。
+    @ObservationIgnored let resources: ResourceRefresher?
     private(set) var entries: [ProfileEntry] = []
     private(set) var currentProfileID: UUID?
     private(set) var lastError: String?
 
-    init(container: SharedContainer) {
+    init(container: SharedContainer, resources: ResourceRefresher? = nil) {
         library = ProfileLibrary(container: container)
+        self.resources = resources
         reload()
     }
 
@@ -95,6 +98,9 @@ final class ProfileStore {
             reload()
             if currentProfileID == nil {
                 await activate(entry, client: client)
+            } else {
+                // 导入时立即下载其引用的资源；失败的资源不影响导入。
+                downloadResources(ProfileResolver.resolve(profileText: review.text, fileName: review.name), client: client)
             }
             lastError = nil
             return entry
@@ -142,6 +148,7 @@ final class ProfileStore {
                     lastError = "已提交，但通知隧道重载失败：\(IPCError(error).message)"
                 }
             }
+            downloadResources(resolved, client: client)
             return true
         } catch {
             lastError = IPCError(error).message
@@ -157,6 +164,13 @@ final class ProfileStore {
         } catch {
             lastError = IPCError(error).message
         }
+    }
+
+    /// 在后台下载配置引用的全部外部资源（未到期的也下载）；隧道运行时由 `resourcesChanged` 触发重载。
+    private func downloadResources(_ resolved: ResolvedProfile, client: (any TunnelClientProtocol)?) {
+        guard let resources else { return }
+        let requests = ResourceRefresher.requests(resolved)
+        Task { await resources.update(requests, force: true, client: client) }
     }
 
     // MARK: - 工具
