@@ -5,6 +5,9 @@ import CryptoKit
 import Foundation
 import Observation
 
+/// App 中的 `ProfileEntry` 指配置索引条目（docs/11 §3.1）；`AetherProfile` 中同名的类型是配置文档的条目。
+typealias ProfileEntry = AetherIPC.ProfileEntry
+
 /// 配置库（docs/11 §3、§6，docs/12 §7.1）：配置列表、导入确认、提交运行包并在隧道运行时请求重载。
 @MainActor
 @Observable

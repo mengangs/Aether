@@ -64,7 +64,8 @@ public final class PathMonitor: @unchecked Sendable {
             var withWiFi = snapshot
             withWiFi.ssid = ssid
             withWiFi.bssid = bssid
-            self.queue.async { self.apply(withWiFi) }
+            let update = withWiFi
+            self.queue.async { self.apply(update) }
         }
     }
 

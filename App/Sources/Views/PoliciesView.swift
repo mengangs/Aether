@@ -94,7 +94,7 @@ struct PolicyListView: View {
                             }
                         }
                         .foregroundStyle(.primary)
-                        .accessibilityAddTraits(member == group.selected ? .isSelected : [])
+                        .accessibilityAddTraits(member == group.selected ? AccessibilityTraits.isSelected : AccessibilityTraits())
                     }
                 } header: {
                     HStack {

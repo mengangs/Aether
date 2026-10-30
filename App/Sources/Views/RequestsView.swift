@@ -1,6 +1,7 @@
 import AetherControl
 import AetherIPC
 import SwiftUI
+import UIKit
 
 /// 请求页（docs/12 §6）：最近 / 活跃请求，可见时以 1 Hz 增量拉取；点击进入基础详情。
 struct RequestsView: View {
