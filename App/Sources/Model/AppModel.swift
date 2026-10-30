@@ -5,7 +5,7 @@ import AetherKeychain
 import Foundation
 import Observation
 
-/// 根模型（docs/12 §13）。M0：运行环境、隧道控制与 1 Hz 状态轮询。
+/// 根模型（docs/12 §12）：运行环境、隧道控制、配置库与首页的 1 Hz 状态轮询。
 @MainActor
 @Observable
 final class AppModel {
@@ -18,6 +18,8 @@ final class AppModel {
     let failure: StartupFailure?
     let controller: (any TunnelControlling)?
     @ObservationIgnored let client: (any TunnelClientProtocol)?
+    /// 配置库；运行环境不可用时为 nil。
+    let profiles: ProfileStore?
 
     /// 隧道通过 IPC 报告的状态；隧道未运行时为 nil。
     private(set) var tunnelStatus: TunnelStatus?
@@ -26,16 +28,27 @@ final class AppModel {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var isForeground = true
 
-    init(controller: any TunnelControlling, client: any TunnelClientProtocol) {
+    init(controller: any TunnelControlling, client: any TunnelClientProtocol, profiles: ProfileStore? = nil) {
         self.failure = nil
         self.controller = controller
         self.client = client
+        self.profiles = profiles
     }
 
     init(failure: StartupFailure) {
         self.failure = failure
         self.controller = nil
         self.client = nil
+        self.profiles = nil
+    }
+
+    /// 隧道是否已连接（依赖隧道的页面据此显示"未连接"占位）。
+    var isConnected: Bool {
+        guard let controller else { return false }
+        switch controller.state {
+        case .connected, .reasserting: return true
+        default: return false
+        }
     }
 
     /// 读取运行环境、定位 App Group、安装日志并创建隧道控制器。
@@ -63,7 +76,9 @@ final class AppModel {
         let logger = Logger(label: "AetherApp")
         let resolved = environment.resolvingKeychainAccessGroupForCurrentProcess(logger: logger)
         let controller = TunnelController(environment: resolved)
-        return AppModel(controller: controller, client: TunnelClient(transport: controller.transport))
+        return AppModel(
+            controller: controller, client: TunnelClient(transport: controller.transport),
+            profiles: ProfileStore(container: container))
     }
 
     func start() async {

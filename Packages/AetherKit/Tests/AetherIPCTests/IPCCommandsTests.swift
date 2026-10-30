@@ -120,3 +120,68 @@ struct RunBundleTests {
         #expect(try RunBundle.resolve("Bundles/abc", under: container.root).lastPathComponent == "abc")
     }
 }
+
+@Suite("Profile library and bundle commit (11 §3, §6)")
+struct ProfileLibraryTests {
+    private let now = Date(timeIntervalSince1970: 1_793_361_600)
+
+    @Test("Profiles are added, updated, renamed, committed with their modules and protected while current")
+    func lifecycle() throws {
+        let container = SharedContainer(
+            root: FileManager.default.temporaryDirectory.appendingPathComponent("aether-library-\(UUID())"))
+        defer { try? FileManager.default.removeItem(at: container.root) }
+        let library = ProfileLibrary(container: container)
+        #expect(library.profiles().isEmpty)
+        let main = try library.addProfile(
+            name: "Main", text: "[Rule]\nFINAL,DIRECT", source: .imported(url: "https://example.com/a.conf"),
+            revision: "sha256:aa", now: now)
+        let spare = try library.addProfile(name: "Spare", text: "x", source: .local, revision: "sha256:bb", now: now)
+        #expect(library.profiles().map(\.name) == ["Main", "Spare"])
+        #expect(try library.text(of: main) == "[Rule]\nFINAL,DIRECT")
+        try library.updateProfile(main.id, text: "[Rule]\nFINAL,REJECT", revision: "sha256:cc", now: now + 60)
+        try library.renameProfile(main.id, to: "Primary")
+        let updated = try #require(library.profiles().first)
+        #expect(updated.name == "Primary" && updated.revision == "sha256:cc" && updated.updatedAt == now + 60)
+        #expect(updated.source == .imported(url: "https://example.com/a.conf"))
+
+        let module = ModuleEntry(name: "Quick Rules", enabled: true, updatedAt: now)
+        try RunBundle.commit(
+            profile: updated, profileText: try library.text(of: updated),
+            modules: [(module, "#!name=Quick Rules\n[Rule]\nDOMAIN,example.org,DIRECT")],
+            revision: "sha256:0123456789abcdef0123", appVersion: "0.3.0 (1)", now: now, container: container)
+        let bundle = try RunBundle.loadActive(from: container)
+        #expect(bundle.manifest.profileID == main.id.uuidString && bundle.manifest.profileName == "Primary")
+        #expect(bundle.profileText == "[Rule]\nFINAL,REJECT")
+        #expect(bundle.modules.map(\.name) == ["Quick Rules"])
+        #expect(bundle.directory.lastPathComponent == "0123456789abcdef")
+        #expect(RunBundle.activeManifest(in: container)?.revision == "sha256:0123456789abcdef0123")
+
+        #expect(throws: IPCError.self) { try library.removeProfile(main.id) }
+        try library.removeProfile(spare.id)
+        #expect(library.profiles().map(\.id) == [main.id])
+        #expect(throws: IPCError.self) {
+            try library.addProfile(
+                name: "Huge", text: String(repeating: "x", count: ProfileLibrary.maxTextBytes + 1), source: .local,
+                revision: "sha256:dd", now: now)
+        }
+    }
+
+    @Test("Only the three most recent bundle directories are kept")
+    func retention() throws {
+        let container = SharedContainer(
+            root: FileManager.default.temporaryDirectory.appendingPathComponent("aether-retention-\(UUID())"))
+        defer { try? FileManager.default.removeItem(at: container.root) }
+        let profile = ProfileEntry(name: "Main", source: .local, createdAt: now, updatedAt: now, revision: "r")
+        for index in 1...5 {
+            try RunBundle.commit(
+                profile: profile, profileText: "[Rule]\nFINAL,DIRECT", modules: [],
+                revision: "sha256:\(index)000000000000000\(index)", appVersion: "t", now: now, container: container)
+            // 把刚提交的目录的修改时间拨到过去（越早提交越旧），使先后顺序与真实时钟无关。
+            let directory = container.bundles.appendingPathComponent("\(index)000000000000000")
+            try FileManager.default.setAttributes(
+                [.modificationDate: Date(timeIntervalSince1970: Double(index) * 1000)], ofItemAtPath: directory.path)
+        }
+        let names = try FileManager.default.contentsOfDirectory(atPath: container.bundles.path).sorted()
+        #expect(names == ["3000000000000000", "4000000000000000", "5000000000000000"])
+    }
+}

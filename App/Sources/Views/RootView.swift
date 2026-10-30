@@ -1,7 +1,7 @@
 import AetherControl
 import SwiftUI
 
-/// 根视图：运行环境可用时显示首页，否则显示错误页。
+/// 根视图：运行环境可用时显示五个标签（docs/12 §2），否则显示错误页。
 struct RootView: View {
     let model: AppModel
 
@@ -9,7 +9,18 @@ struct RootView: View {
         if let failure = model.failure {
             StartupErrorView(failure: failure)
         } else if let controller = model.controller {
-            HomeView(model: model, controller: controller)
+            TabView {
+                HomeView(model: model, controller: controller)
+                    .tabItem { Label("首页", systemImage: "circle.hexagongrid") }
+                PoliciesView(model: model)
+                    .tabItem { Label("策略", systemImage: "point.3.connected.trianglepath.dotted") }
+                RequestsView(model: model)
+                    .tabItem { Label("请求", systemImage: "list.bullet.rectangle") }
+                ProfilesView(model: model)
+                    .tabItem { Label("配置", systemImage: "doc.text") }
+                ToolsView(model: model)
+                    .tabItem { Label("工具", systemImage: "wrench.and.screwdriver") }
+            }
         }
     }
 }
@@ -42,6 +53,11 @@ struct StartupErrorView: View {
         }
         return "Info.plist 中缺少或包含无效的标识符。请用 release 工作流重新构建，并检查仓库变量。"
     }
+}
+
+#Preview("五个标签") {
+    let controller = MockTunnelController(state: .connected(since: Date().addingTimeInterval(-600)))
+    RootView(model: AppModel(controller: controller, client: MockTunnelClient.running, profiles: .preview(seeded: true)))
 }
 
 #Preview("App Group 不可用") {

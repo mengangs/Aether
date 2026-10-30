@@ -7,6 +7,14 @@ import Foundation
 public protocol TunnelClientProtocol: Sendable {
     /// `getStatus`。隧道未运行时抛 `IPC-001`，界面据此显示「未连接」而不弹错误。
     func status() async throws -> TunnelStatus
+    func memoryInfo() async throws -> MemoryInfo
+    func reloadProfile(expectedRevision: String?) async throws -> ReloadResult
+    func setOutboundMode(_ mode: OutboundMode) async throws
+    func setGlobalPolicy(_ policy: String) async throws
+    func policies() async throws -> PolicyList
+    func selectPolicy(group: String, policy: String) async throws
+    func traffic() async throws -> TrafficReport
+    func requests(kind: RequestListKind, sinceID: UInt64?, limit: Int) async throws -> RequestPage
 }
 
 /// 基于 `NETunnelProviderSession.sendProviderMessage` 的传输。会话由 `TunnelController` 在加载配置后更新。
@@ -57,5 +65,37 @@ public actor TunnelClient: TunnelClientProtocol {
 
     public func status() async throws -> TunnelStatus {
         try await client.status()
+    }
+
+    public func memoryInfo() async throws -> MemoryInfo {
+        try await client.memoryInfo()
+    }
+
+    public func reloadProfile(expectedRevision: String?) async throws -> ReloadResult {
+        try await client.reloadProfile(expectedRevision: expectedRevision)
+    }
+
+    public func setOutboundMode(_ mode: OutboundMode) async throws {
+        try await client.setOutboundMode(mode)
+    }
+
+    public func setGlobalPolicy(_ policy: String) async throws {
+        try await client.setGlobalPolicy(policy)
+    }
+
+    public func policies() async throws -> PolicyList {
+        try await client.policies()
+    }
+
+    public func selectPolicy(group: String, policy: String) async throws {
+        try await client.selectPolicy(group: group, policy: policy)
+    }
+
+    public func traffic() async throws -> TrafficReport {
+        try await client.traffic()
+    }
+
+    public func requests(kind: RequestListKind, sinceID: UInt64?, limit: Int) async throws -> RequestPage {
+        try await client.requests(kind: kind, sinceID: sinceID, limit: limit)
     }
 }

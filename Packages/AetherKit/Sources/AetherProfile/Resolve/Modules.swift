@@ -106,6 +106,17 @@ extension AetherErrorCode {
     public static let cfgModuleMissingName: AetherErrorCode = "CFG-084"
 }
 
+extension ModuleInput {
+    /// 参数值代入后的模块文本（运行包中保存的形式，docs/11 §6）；有占位符没有值时为 nil（该模块不能提交）。
+    public func substitutedText() -> String? {
+        var sink = DiagnosticSink(file: name)
+        let (document, _) = ProfileDocument.parse(text, fileName: name)
+        let metadata = ModuleMetadata.parse(document, sink: &sink)
+        return ModuleArgumentSubstitution.substitute(
+            text, arguments: metadata.arguments, values: argumentValues, sink: &sink)
+    }
+}
+
 /// 模块参数替换：把正文中的 `{{{名}}}` 替换为参数值（用户值优先，其次默认值）。
 enum ModuleArgumentSubstitution {
     /// - Returns: 替换后的文本；声明了但没有值、或未声明的占位符报告 `CFG-081` 并返回 nil。

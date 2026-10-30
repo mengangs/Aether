@@ -290,6 +290,8 @@ App 进入后台时若仍持有 App Group 中 SQLite 的锁，可能被系统终
 
 本地脚本与外部资源不复制进运行包，隧道直接读取 `Scripts/` 与 `Resources/`。
 
+实现（M2-11）：`AetherIPC` 的 `ProfileLibrary` 读写 `Profiles/` 与 `Modules/` 的索引（最多 128 个配置，单个文本不超过 4 MiB，当前运行包引用的配置不可删除），`RunBundle.commit` 写运行包、替换 `active.json` 并保留最近修改的 3 个运行包目录；修订号与校验由 App 用 `AetherProfile` 计算（`AetherIPC` 不依赖 `AetherProfile`）。模块按 `ModuleInput.substitutedText()` 代入参数后写入；有占位符没有值的模块不写入。`ProfileEntry.revision` 为配置文本的 SHA-256（App 用 CryptoKit 计算）。
+
 ## 7. 数据保护与备份
 
 - App Group 中的文件使用默认数据保护级别 `completeUntilFirstUserAuthentication`。设备重启后首次解锁前隧道无法读取配置，此时启动失败并返回明确错误。

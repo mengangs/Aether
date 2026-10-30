@@ -290,4 +290,12 @@ struct DiagnosticCoverageTests {
         let covered = Set(Self.cases.map(\.0))
         #expect(required.subtracting(covered).isEmpty, "uncovered: \(required.subtracting(covered).sorted())")
     }
+
+    @Test func substitutedTextForBundles() {
+        let text = "#!name=M\n#!arguments=policy:DIRECT,host:a.example.com\n[Rule]\nDOMAIN,{{{host}}},{{{policy}}}\n"
+        let module = ModuleInput(name: "M", text: text, argumentValues: ["host": "b.example.com"])
+        #expect(module.substitutedText()?.contains("DOMAIN,b.example.com,DIRECT") == true)
+        #expect(
+            ModuleInput(name: "N", text: "#!name=N\n[Rule]\nDOMAIN,{{{missing}}},DIRECT\n").substitutedText() == nil)
+    }
 }
