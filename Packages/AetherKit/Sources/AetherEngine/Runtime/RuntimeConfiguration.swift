@@ -164,6 +164,24 @@ public final class RuntimeConfiguration: Sendable {
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
                     supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
+        case .shadowsocks(let method, let password, let obfs):
+            guard let aead = ShadowsocksAEADMethod(rawValue: method.rawValue) else {
+                return unavailable(
+                    spec, identity: identity, reason: "\(method.rawValue) arrives with M3-06", notes: &notes)
+            }
+            if obfs?.mode == .tls {
+                return unavailable(
+                    spec, identity: identity, reason: "simple-obfs tls arrives with M3-06", notes: &notes)
+            }
+            let connector = ShadowsocksConnector(
+                name: spec.name,
+                server: ProxyServer(host: host, port: port, addressPreference: server.addressPreference),
+                method: aead, password: password,
+                obfs: obfs.map { SimpleObfsHTTPOptions(host: $0.host, uri: $0.uri ?? "/") }, udpEnabled: spec.udpRelay)
+            return .proxy(
+                ProxyNode(
+                    name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
+                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
         default:
             notes.append("Proxy \(spec.name): \(spec.type) is supported from M3")
             return .proxy(
@@ -171,6 +189,16 @@ public final class RuntimeConfiguration: Sendable {
                     name: spec.name, type: spec.type, connector: nil, unavailableReason: "\(spec.type) arrives in M3",
                     supportsUDP: false, identity: identity, blockQUIC: spec.blockQUIC))
         }
+    }
+
+    /// 本里程碑尚未实现的协议变体：节点不可用并写入提示。
+    static func unavailable(_ spec: ProxySpec, identity: String, reason: String, notes: inout [String]) -> RuntimePolicy
+    {
+        notes.append("Proxy \(spec.name): \(reason)")
+        return .proxy(
+            ProxyNode(
+                name: spec.name, type: spec.type, connector: nil, unavailableReason: reason, supportsUDP: false,
+                identity: identity, blockQUIC: spec.blockQUIC))
     }
 
     static func tlsOptions(_ options: TLSOptions) -> TLSClientOptions {

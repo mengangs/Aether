@@ -219,3 +219,37 @@ public enum NetworkErrorMapping {
         return NetworkError(.netConnectionRefused, String(describing: error))
     }
 }
+
+/// 解析节点服务器的一个地址（UDP 等不做 Happy Eyeballs 的场合）：按 `ip-version` 依次尝试地址族，取第一个结果。
+/// IP 字面量直接返回；全部为空时以 `NET-011` 失败。
+enum ServerAddressSelection {
+    static func families(for preference: AddressFamilyPreference) -> [AddressFamily] {
+        switch preference {
+        case .v4Only: return [.v4]
+        case .v6Only: return [.v6]
+        case .preferV6: return [.v6, .v4]
+        case .dual, .preferV4: return [.v4, .v6]
+        }
+    }
+
+    static func resolve(
+        _ host: String, preference: AddressFamilyPreference, resolver: any ServerAddressResolver,
+        eventLoop: any EventLoop
+    ) -> EventLoopFuture<IPAddress> {
+        if let address = IPAddress(host) {
+            return eventLoop.makeSucceededFuture(address.unmappedIPv4)
+        }
+        func attempt(_ remaining: ArraySlice<AddressFamily>) -> EventLoopFuture<IPAddress> {
+            guard let family = remaining.first else {
+                return eventLoop.makeFailedFuture(NetworkError(.netResolutionFailed, "No address for \(host)"))
+            }
+            return resolver.resolve(host, family: family, on: eventLoop).hop(to: eventLoop).flatMap { addresses in
+                if let first = addresses.first {
+                    return eventLoop.makeSucceededFuture(first)
+                }
+                return attempt(remaining.dropFirst())
+            }
+        }
+        return attempt(families(for: preference)[...])
+    }
+}

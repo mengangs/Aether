@@ -160,7 +160,7 @@ private let baseProfile = """
 
     [Proxy]
     Proxy = socks5, 127.0.0.1, {UPSTREAM}
-    SS = ss, ss.example.com, 8388, encrypt-method=aes-128-gcm, password=test
+    SS = snell, ss.example.com, 8388, psk=test
 
     [Proxy Group]
     Select = select, Proxy, DIRECT

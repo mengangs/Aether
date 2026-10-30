@@ -171,6 +171,31 @@ struct RuntimeConfigurationTests {
         #expect(configuration.notes.contains { $0.contains("vmess") })
     }
 
+    @Test("Shadowsocks AEAD nodes get connectors; 2022 methods and obfs=tls stay unavailable until M3-06")
+    func compileShadowsocks() {
+        let configuration = compile(
+            """
+            [Proxy]
+            A = ss, ss.example.com, 8388, encrypt-method=chacha20-ietf-poly1305, password=pw, udp-relay=true, obfs=http, obfs-host=cdn.example.org
+            B = ss, ss.example.com, 8389, encrypt-method=2022-blake3-aes-128-gcm, password=AAAAAAAAAAAAAAAAAAAAAA==
+            C = ss, ss.example.com, 8390, encrypt-method=aes-128-gcm, password=pw, obfs=tls
+            """)
+        guard case .proxy(let aead) = configuration.policies["A"],
+            case .proxy(let ss2022) = configuration.policies["B"],
+            case .proxy(let obfsTLS) = configuration.policies["C"]
+        else {
+            Issue.record("nodes missing")
+            return
+        }
+        let connector = aead.connector as? ShadowsocksConnector
+        #expect(connector?.method == .chacha20IETFPoly1305)
+        #expect(connector?.obfs == SimpleObfsHTTPOptions(host: "cdn.example.org", uri: "/"))
+        #expect(connector?.server.port == 8388)
+        #expect(aead.supportsUDP && connector?.capabilities.contains(.udp) == true)
+        #expect(ss2022.connector == nil && ss2022.unavailableReason?.contains("M3-06") == true)
+        #expect(obfsTLS.connector == nil && obfsTLS.unavailableReason?.contains("obfs tls") == true)
+    }
+
     @Test("Node identity changes with credentials but not with the name")
     func identity() {
         let a = compile("[Proxy]\nA = socks5, 192.0.2.1, 1080, username=u, password=one\n[Rule]\nFINAL,A")

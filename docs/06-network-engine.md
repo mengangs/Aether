@@ -332,6 +332,8 @@ public struct DialContext: Sendable {
 | Hysteria2 / TUIC v5 | 各自公开规范 | 基于 QUIC，需要先做技术预研（Swift 或宽松许可证 C 库），见 [14 M7](14-roadmap.md#m7进阶v1x) | M7 |
 | WireGuard | 白皮书 | 需要用户态 TCP/IP 栈把流转换为 IP 包，预研 | M7 |
 
+Shadowsocks AEAD 的实现（M3-01）：连接后立即发送 salt 与只含目标地址的首块（服务端先说话的协议也能工作），之后每次写入按 ≤ 0x3FFF 字节分块加密；服务端没有握手应答，密码错误时服务端通常保持连接不回复或直接关闭（shadowsocks-rust 的防探测行为），由流的超时或关闭结束；响应无法通过认证或长度超过 0x3FFF 时以 `NET-032` 关闭。UDP 关联为一个发往服务器的 UDP socket（服务器域名按 `ip-version` 解析出一个地址），只接受来自该地址的包，无法解开的包丢弃并计数。`2022-*` 方法与 `obfs=tls` 在 M3-06 之前节点不可用并如实标注。测试向量由 `Tests/Fixtures/vectors/shadowsocks/generate.py` 用 Python `cryptography`（OpenSSL）独立生成，`EVP_BytesToKey` 与 `openssl enc -md md5 -nosalt -P` 的输出比对。
+
 密码学原语来自 swift-crypto。缺少的原语（SHA-224、AES 单块加密、CRC32、FNV-1a、HChaCha20 等）在 `AetherOutbound/Crypto/` 中实现，每个都必须有来自 RFC 或官方实现的测试向量。
 
 ### 8.5 传输层
@@ -340,7 +342,7 @@ public struct DialContext: Sendable {
 | --- | --- |
 | TLS | swift-nio-ssl 客户端；最低 TLS 1.2；SNI、ALPN 取配置（服务器地址为 IP 时不发 SNI）；默认完整验证：证书链由 NIOSSL 验证（Apple 平台上默认信任根走系统信任评估），主机名在握手完成后按与 NIOSSL 相同的规则比对叶子证书的备用名称（没有备用名称时比对 CN；服务器地址为 IP 且不发 SNI 时只比对 IP 备用名称），使各平台的主机名不匹配都报 `TLS-002`（系统信任评估会把它并入一般的链验证失败）；`skip-cert-verify` 关闭验证；`server-cert-fingerprint-sha256` 用自定义验证回调只比对叶子证书指纹（不做链与主机名验证）。同一组参数共享一个 `NIOSSLContext`（最多 32 个）；关闭时等待对端 `close_notify` 最多 1 秒。握手失败以 `TLS-001`–`TLS-005` 区分原因，请求记录的错误码为 `NET-033` 并在备注中附 TLS 码 |
 | WebSocket | 客户端升级：`GET ws-path`（不以 `/` 开头时补上），`Host` 取 `ws-headers` 中的 Host、自定义 SNI 或服务器名（非默认端口时附端口），其余 `ws-headers` 原样附加（升级所需的头不可覆盖，头值中的 CR / LF 去掉）；响应不是 `101` → `NET-030`（附状态码），`Upgrade` 或 `Sec-WebSocket-Accept` 不符 → `NET-032`。之后用 NIOWebSocket 的帧编解码：载荷用二进制帧、客户端掩码，单帧最多 16 KiB（更大的写入拆帧）；收到的单帧上限 128 KiB（解码缓冲上限，超出以 `NET-032` 关闭），二进制 / 文本 / 续帧都按字节流交出，`ping` 回 `pong`，收到 `close` 回 `close` 后关闭。WebSocket 没有半关闭：输出方向的关闭被忽略，连接在对端关闭、完全关闭（先发 `close`）或空闲超时时结束。暂不支持 early data |
-| simple-obfs http | 首包伪装为带 `Upgrade: websocket` 头的 HTTP 请求并携带载荷，跳过服务端的 HTTP 响应头，之后为原始数据 |
+| simple-obfs http | 首包伪装为带 `Upgrade: websocket` 头的 `GET <obfs-uri>` 请求并以载荷为请求体（`Host` 取 `obfs-host`，未设置时用服务器地址，非 80 端口附端口；`User-Agent` 为随机的 curl 版本、随机 `Sec-WebSocket-Key`、`Content-Length` 为载荷长度，与 simple-obfs `obfs_http.c` 一致），跳过一次服务端的 HTTP 响应头（上限 16 KiB，超出 `NET-032`），之后为原始数据 |
 | simple-obfs tls | 按 simple-obfs 源码实现伪 TLS 握手（M3 后半） |
 
 ### 8.6 连接复用
