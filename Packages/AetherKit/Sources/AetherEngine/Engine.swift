@@ -43,6 +43,8 @@ public final class Engine: Sendable {
         public var logger = Logger(label: "AetherEngine")
         /// 测试用：按写法构造 DNS 上游（为 nil 时使用真实上游）。
         public var dnsUpstreams: (@Sendable (DNSUpstreamSpec) -> (any DNSUpstream)?)?
+        /// DoH / DoT 额外信任的根证书（PEM），只用于测试。
+        public var encryptedDNSTrustRoots: [String] = []
 
         public init() {}
     }
@@ -54,10 +56,12 @@ public final class Engine: Sendable {
     public let statistics: TrafficStatistics
     private let httpProxy: Locked<HTTPProxyInbound?>
     public let options: Options
+    /// `encrypted-dns-skip-cert-verify` 的当前值（DoH / DoT 上游工厂读取）。
+    private let encryptedDNSSkipVerify: Locked<Bool>
 
     private init(
         threads: EngineThreads, router: Router, socks: SOCKS5Inbound, statistics: TrafficStatistics,
-        httpProxy: HTTPProxyInbound?, options: Options
+        httpProxy: HTTPProxyInbound?, options: Options, encryptedDNSSkipVerify: Locked<Bool>
     ) {
         self.threads = threads
         self.router = router
@@ -65,6 +69,7 @@ public final class Engine: Sendable {
         self.statistics = statistics
         self.httpProxy = Locked(httpProxy)
         self.options = options
+        self.encryptedDNSSkipVerify = encryptedDNSSkipVerify
     }
 
     public var eventLoop: any EventLoop { router.eventLoop }
@@ -81,12 +86,26 @@ public final class Engine: Sendable {
         threads: EngineThreads = EngineThreads()
     ) async throws -> Engine {
         let loop = threads.eventLoop
-        let (router, statistics) = try await loop.submit { () -> (Router, TrafficStatistics) in
+        let (router, statistics, skipVerify) = try await loop.submit {
+            () -> (Router, TrafficStatistics, Locked<Bool>) in
+            // DoH / DoT 上游由引擎创建（AetherDNS 不依赖 TLS 与 HTTP/2）；其服务器域名经普通 DNS 解析。
+            let serverResolver = DeferredServerResolver()
+            let override = options.dnsUpstreams
+            let trustRoots = options.encryptedDNSTrustRoots
+            // 重载时 `encrypted-dns-skip-cert-verify` 可能变化：工厂读取当前值（重载在重建上游之前更新它）。
+            let skipVerify = Locked(configuration.general.encryptedDNSSkipCertVerify)
             let dns = DNSService(
                 configuration: configuration.dns,
                 environment: .init(
                     eventLoop: loop, blockingPool: threads.blockingPool, systemServers: options.systemDNSServers,
-                    logger: options.logger, makeUpstream: options.dnsUpstreams))
+                    logger: options.logger,
+                    makeUpstream: { spec in
+                        override?(spec)
+                            ?? EncryptedDNSUpstream(
+                                spec: spec, eventLoop: loop, resolver: serverResolver,
+                                skipCertificateVerification: skipVerify.current, trustRoots: trustRoots)
+                    }))
+            serverResolver.bind(dns)
             let policies = PolicyRegistry(selections: selections, clock: options.clock)
             policies.migrate(to: configuration)
             let dependencies = Router.Dependencies(
@@ -105,7 +124,7 @@ public final class Engine: Sendable {
                 router.tester?.start()
             }
             statistics.start()
-            return (router, statistics)
+            return (router, statistics, skipVerify)
         }.get()
         let socks: SOCKS5Inbound
         var http: HTTPProxyInbound?
@@ -125,7 +144,8 @@ public final class Engine: Sendable {
             throw error
         }
         let engine = Engine(
-            threads: threads, router: router, socks: socks, statistics: statistics, httpProxy: http, options: options)
+            threads: threads, router: router, socks: socks, statistics: statistics, httpProxy: http, options: options,
+            encryptedDNSSkipVerify: skipVerify)
         engine.report(configuration.notes)
         return engine
     }
@@ -134,6 +154,7 @@ public final class Engine: Sendable {
     /// 清空规则决策缓存；DNS 只替换 Host 表与上游（缓存保持）。`system-proxy` 变化时启停 HTTP 代理入站。
     public func reload(_ configuration: RuntimeConfiguration) async throws {
         let router = self.router
+        encryptedDNSSkipVerify.withLock { $0 = configuration.general.encryptedDNSSkipCertVerify }
         try await eventLoop.submit {
             router.replaceConfiguration(configuration)
             router.dependencies.dns.update(configuration: configuration.dns)

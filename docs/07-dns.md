@@ -43,7 +43,7 @@ flowchart LR
 - `system` 上游的服务器列表由平台注入：隧道用 libresolv（M2-09），`aether-cli` 读 `/etc/resolv.conf`。
 - 同时进行的上游查询上限 256（06 §13）：超出时应答方回复 SERVFAIL，解析方以 `DNS-004` 失败；在途合并的查询不占名额。
 - TUN 上发往 DNS 地址的 TCP 连接由 `DNSStreamServerHandler` 处理：最多 16 个未完成的查询（超出后暂停读取），未成帧数据超过 64 KiB 时关闭连接。
-- M2 中 `encrypted-dns-server` 的 DoH / DoT 上游尚未实现（M3-11）：配置了也退回 `dns-server` 组，并记录一条 notice 日志。
+- M2 中 `encrypted-dns-server` 的 DoH / DoT 上游尚未实现；M3-11 起见 §4.3。
 
 ## 2. 查询入口
 
@@ -134,6 +134,15 @@ captive.apple.com, time.apple.com, time-ios.apple.com, *.ntp.org, stun.*
 - 同一组内所有上游**并发**查询，采用第一个 `NOERROR` 或 `NXDOMAIN` 响应；`SERVFAIL`、`REFUSED`、超时则等待其它上游。
 - 整体超时 5 秒，超时返回 `SERVFAIL`（应答方）或 `DNS-001`（解析方）。
 - 每个上游记录最近 20 次耗时与失败次数，供 DNS 诊断页展示。
+
+### 4.3 实现（M3-11）
+
+- DoH / DoT 的客户端在 `AetherHTTP`（`DNSOverHTTPSClient`、`DNSOverTLSClient`，不依赖 `AetherDNS`），由引擎包装为 `DNSUpstream` 并通过 `DNSService` 的上游工厂注入：工厂先由引擎创建 DoH / DoT，返回 nil 时 `DNSService` 用内置的 system / UDP 实现；`encrypted-dns-server` 没有任何可用上游时退回 `dns-server` 组并记 notice。
+- 服务器域名经 `dns-server` 组解析（`purpose: .server`，不走加密组，避免自举循环），连接经 DIRECT；证书默认完整验证，`encrypted-dns-skip-cert-verify = true` 时跳过（重载时生效）。
+- DoT：一条长连接、2 字节长度分帧、允许流水线；线上的报文 ID 由客户端重新分配，应答按 ID 交回并恢复原 ID；在途上限 64；连接关闭时在途查询在新连接上重发一次。
+- DoH：`POST application/dns-message`，线上报文 ID 为 0（RFC 8484），应答恢复原 ID；TLS 的 ALPN 依次提供 `h2`、`http/1.1`，协商出 h2 时每个查询一个流，否则为 HTTP/1.1 长连接、一次一个请求；在途或排队上限 64，应答正文上限 64 KiB，非 200 视为失败。
+- 单次查询超时 5 秒；失败映射为 `DNS-001`（超时）或 `DNS-002`（不可达、TLS 失败、非 200）。网络修订号变化时关闭全部加密上游的连接（06 §11 第 3 步）。
+- `[Host]` 的 `server:` 值同样可以写 `https://…` / `tls://…`，即按域名指定加密上游。
 
 ## 5. 缓存
 

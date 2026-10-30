@@ -49,6 +49,8 @@ var targets: [Target] = [
         dependencies: [
             "AetherOutbound", "AetherRules", "AetherCertificates", "AetherScriptCore",
             .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOHTTP1", package: "swift-nio"),
+            .product(name: "NIOHTTP2", package: "swift-nio-http2"), .product(name: "NIOSSL", package: "swift-nio-ssl"),
+            .product(name: "NIOTLS", package: "swift-nio"),
         ]
     ),
     .target(name: "AetherIPC", dependencies: ["AetherFoundation"]),
@@ -114,8 +116,10 @@ var targets: [Target] = [
     .testTarget(
         name: "AetherHTTPTests",
         dependencies: [
-            "AetherHTTP", .product(name: "NIOCore", package: "swift-nio"),
-            .product(name: "NIOHTTP1", package: "swift-nio"),
+            "AetherHTTP", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOHTTP1", package: "swift-nio"),
+            .product(name: "NIOHTTP2", package: "swift-nio-http2"), .product(name: "NIOSSL", package: "swift-nio-ssl"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
         ]
     ),
     .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC", "AetherTestSupport"]),
@@ -126,7 +130,7 @@ var targets: [Target] = [
             "AetherEngine", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOEmbedded", package: "swift-nio"),
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
-            .product(name: "NIOHTTP1", package: "swift-nio"),
+            .product(name: "NIOHTTP1", package: "swift-nio"), .product(name: "NIOSSL", package: "swift-nio-ssl"),
         ]
     ),
 ]
@@ -184,6 +188,7 @@ let dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
     .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.5"),
+    .package(url: "https://github.com/apple/swift-nio-http2.git", from: "1.46.0"),
     .package(url: "https://github.com/apple/swift-certificates.git", from: "1.21.1"),
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
 ]

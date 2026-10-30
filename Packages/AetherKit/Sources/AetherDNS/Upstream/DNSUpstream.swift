@@ -12,15 +12,21 @@ public protocol DNSUpstream: AnyObject, Sendable {
     var isSystem: Bool { get }
     /// 发送查询（ID 已由调用方设好），返回原始应答。失败以 `DNSError` 结束。
     func send(_ query: [UInt8], on eventLoop: any EventLoop) -> EventLoopFuture<[UInt8]>
+    /// 关闭保持的连接（网络变化时，docs/06 §11）。没有长连接的上游什么也不做。
+    func reset()
+}
+
+extension DNSUpstream {
+    public func reset() {}
 }
 
 /// 上游写法（`dns-server`、`encrypted-dns-server`、`[Host]` 的 `server:`）。
 public enum DNSUpstreamSpec: Hashable, Sendable {
     case system
     case udp(host: String, port: Int)
-    /// DoH（M3）。
+    /// DoH（M3-11，由引擎注入的工厂创建）。
     case https(String)
-    /// DoT（M3）。
+    /// DoT（M3-11，由引擎注入的工厂创建）。
     case tls(String)
     /// DoQ（M7）。
     case quic(String)
@@ -60,11 +66,11 @@ public enum DNSUpstreamSpec: Hashable, Sendable {
         }
     }
 
-    /// M2 是否已实现。
+    /// 是否已实现（DoQ 在 M7）。
     public var isSupported: Bool {
         switch self {
-        case .system, .udp: return true
-        case .https, .tls, .quic: return false
+        case .system, .udp, .https, .tls: return true
+        case .quic: return false
         }
     }
 }

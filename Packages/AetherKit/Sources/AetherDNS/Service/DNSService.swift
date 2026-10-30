@@ -125,19 +125,16 @@ public final class DNSService: @unchecked Sendable {
         systemUpstreams = []
         hostGroups = [:]
         plainGroup = makeGroup(identifier: "plain", specs: configuration.servers)
-        let encrypted = configuration.encryptedServers.compactMap(DNSUpstreamSpec.init)
-        if !encrypted.isEmpty {
-            let supported = encrypted.filter(\.isSupported)
-            if supported.isEmpty {
+        encryptedGroup = nil
+        if !configuration.encryptedServers.isEmpty {
+            let group = makeGroup(identifier: "encrypted", specs: configuration.encryptedServers)
+            if group.upstreams.isEmpty {
                 environment.logger.notice(
-                    "Encrypted DNS upstreams are not available yet; using dns-server",
-                    metadata: ["count": "\(encrypted.count)"])
-                encryptedGroup = nil
+                    "No encrypted DNS upstream is available; using dns-server",
+                    metadata: ["count": "\(configuration.encryptedServers.count)"])
             } else {
-                encryptedGroup = makeGroup(identifier: "encrypted", specs: configuration.encryptedServers)
+                encryptedGroup = group
             }
-        } else {
-            encryptedGroup = nil
         }
     }
 
@@ -146,9 +143,10 @@ public final class DNSService: @unchecked Sendable {
         return DNSUpstreamGroup(identifier: identifier, upstreams: upstreams, eventLoop: eventLoop)
     }
 
+    /// 先用注入的工厂（引擎创建 DoH / DoT，测试替换上游），工厂返回 nil 时用内置实现（system、UDP）。
     private func makeUpstream(_ spec: DNSUpstreamSpec) -> (any DNSUpstream)? {
-        if let factory = environment.makeUpstream {
-            return factory(spec)
+        if let factory = environment.makeUpstream, let made = factory(spec) {
+            return made
         }
         switch spec {
         case .system:
@@ -163,7 +161,8 @@ public final class DNSService: @unchecked Sendable {
             guard let address = try? SocketAddress(ipAddress: host, port: port) else { return nil }
             return UDPDNSUpstream(address: address)
         case .https, .tls, .quic:
-            environment.logger.notice("DNS upstream type not available yet", metadata: ["upstream": "\(spec)"])
+            // DoH / DoT 由引擎注入的工厂创建；DoQ 在 M7。
+            environment.logger.notice("DNS upstream type not available here", metadata: ["upstream": "\(spec)"])
             return nil
         }
     }
@@ -436,6 +435,15 @@ public final class DNSService: @unchecked Sendable {
     public func flushCache() {
         eventLoop.preconditionInEventLoop()
         cache.removeAll()
+    }
+
+    /// 关闭各上游保持的连接（DoH / DoT；网络变化时，docs/06 §11）。
+    public func resetUpstreams() {
+        eventLoop.preconditionInEventLoop()
+        let groups = [plainGroup] + (encryptedGroup.map { [$0] } ?? []) + Array(hostGroups.values)
+        for upstream in groups.flatMap(\.upstreams) {
+            upstream.reset()
+        }
     }
 
     /// 内存压力 warning：清空正向缓存与反查表，保留 Fake IP 表（docs/02 §6）。

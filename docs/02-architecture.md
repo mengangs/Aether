@@ -59,7 +59,7 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 | `AetherOutbound` | 全部 | swift-nio、swift-nio-ssl、swift-certificates、swift-crypto、CBlake3 | 出站连接器与各代理协议、传输层（TLS、WebSocket、obfs） |
 | `AetherCertificates` | 全部 | swift-certificates、swift-crypto | MitM 的 CA 生成、叶子证书签发、`.mobileconfig` 生成、CA 备份格式加解密 |
 | `AetherScriptCore` | 全部 | — | `ScriptRuntime` 协议、脚本值类型、`ScriptHostServices` 协议（网络请求、存储、通知、GeoIP 等由宿主注入）、cron 表达式解析 |
-| `AetherHTTP` | 全部 | swift-nio（HTTP1/HTTP2） | 经出站连接器的最小 HTTP 客户端（测速 `HTTPProbe`）、TLS 终止、HTTP 处理管线、重写、抓包、调用 `ScriptRuntime` |
+| `AetherHTTP` | 全部 | swift-nio（HTTP1/HTTP2）、swift-nio-http2、swift-nio-ssl | 经出站连接器的最小 HTTP 客户端（测速 `HTTPProbe`）、DoH / DoT 客户端、TLS 终止、HTTP 处理管线、重写、抓包、调用 `ScriptRuntime` |
 | `AetherEngine` | 全部 | 以上全部 + `AetherIPC`、`AetherStore` | 入站、`Router`、流管理、策略组、统计、运行配置装配与热替换、IPC 命令处理 |
 | `AetherIPC` | 全部 | — | App ↔ 隧道消息类型、`AppEnvironment`、共享路径、状态快照模型、Darwin 通知名 |
 | `AetherStore` | 全部 | GRDB | 流量统计、请求历史、日志簿、脚本存储的数据库访问 |

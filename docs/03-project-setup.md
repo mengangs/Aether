@@ -208,7 +208,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | --- | --- | --- | --- | --- |
 | apple/swift-nio | Apache-2.0 | Engine、Outbound、DNS、HTTP；AetherTestSupport（回环测试服务） | 事件循环、Channel、HTTP/1、WebSocket | 2.104.0 |
 | apple/swift-nio-ssl | Apache-2.0（内含 BoringSSL：ISC 与 OpenSSL 许可证组合，均为宽松许可证） | Outbound、HTTP；AetherTestSupport | TLS 客户端与服务端 | 2.37.5 |
-| apple/swift-nio-http2 | Apache-2.0 | HTTP | HTTP/2 MitM（M7）、DoH over h2 | |
+| apple/swift-nio-http2 | Apache-2.0 | HTTP | DoH over h2（M3-11）、HTTP/2 MitM（M7） | 1.46.0 |
 | apple/swift-nio-extras | Apache-2.0 | HTTP | HTTP 压缩等辅助 Handler | |
 | apple/swift-crypto | Apache-2.0 | Profile、Outbound、Certificates | AEAD、哈希（含配置修订号）、HKDF、密钥；`_CryptoExtras`（RSA 等） | 5.0.3 |
 | apple/swift-certificates | Apache-2.0 | Certificates、Outbound；AetherTestSupport（测试时临时生成 CA 与服务器证书，仓库中不存私钥） | X.509 生成与签发（MitM）；TLS 服务器身份（主机名）校验 | 1.21.1（swift-nio-ssl 也依赖它） |

@@ -434,6 +434,7 @@ public actor TunnelRuntime {
             let router = engine.router
             try? await engine.eventLoop.submit {
                 router.dependencies.dns.flushCache()
+                router.dependencies.dns.resetUpstreams()
                 router.clearDecisionCache()
                 router.tester?.networkChanged()
             }.get()

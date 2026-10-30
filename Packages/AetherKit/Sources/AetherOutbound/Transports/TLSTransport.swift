@@ -120,8 +120,10 @@ public enum TLSTransport {
     }
 
     /// 在已连接的 Channel 上完成 TLS 握手。握手超过 `deadline` 时失败（`TLS-005`）。
+    /// `onNegotiated` 在握手完成时以协商出的 ALPN 协议调用（没有协商时为 nil）。
     public static func handshake(
-        on channel: any Channel, serverHost: String, options: TLSClientOptions, deadline: NIODeadline
+        on channel: any Channel, serverHost: String, options: TLSClientOptions, deadline: NIODeadline,
+        onNegotiated: (@Sendable (String?) -> Void)? = nil
     ) -> EventLoopFuture<any Channel> {
         let eventLoop = channel.eventLoop
         let handler: NIOSSLClientHandler
@@ -149,7 +151,8 @@ public enum TLSTransport {
         let identity: TLSHandshakeWaiter.IdentityCheck? =
             pinned || options.skipCertificateVerification
             ? nil : .init(hostname: options.effectiveServerName(serverHost: serverHost))
-        let waiter = TLSHandshakeWaiter(promise: promise, fingerprintPinned: pinned, identity: identity)
+        let waiter = TLSHandshakeWaiter(
+            promise: promise, fingerprintPinned: pinned, identity: identity, onNegotiated: onNegotiated)
         do {
             try channel.pipeline.syncOperations.addHandler(handler)
             try channel.pipeline.syncOperations.addHandler(waiter)
@@ -202,20 +205,25 @@ private final class TLSHandshakeWaiter: ChannelInboundHandler, RemovableChannelH
     private let promise: EventLoopPromise<any Channel>
     private let fingerprintPinned: Bool
     private let identity: IdentityCheck?
+    private let onNegotiated: (@Sendable (String?) -> Void)?
 
     /// 完整验证时握手后比对的服务器身份。
     struct IdentityCheck {
         var hostname: String?
     }
 
-    init(promise: EventLoopPromise<any Channel>, fingerprintPinned: Bool, identity: IdentityCheck?) {
+    init(
+        promise: EventLoopPromise<any Channel>, fingerprintPinned: Bool, identity: IdentityCheck?,
+        onNegotiated: (@Sendable (String?) -> Void)?
+    ) {
         self.promise = promise
         self.fingerprintPinned = fingerprintPinned
         self.identity = identity
+        self.onNegotiated = onNegotiated
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
-        if case .some(.handshakeCompleted) = event as? TLSUserEvent {
+        if case .some(.handshakeCompleted(let negotiated)) = event as? TLSUserEvent {
             let channel = context.channel
             if let identity {
                 let leaf = try? context.pipeline.syncOperations.nioSSL_peerCertificate()?.toDERBytes()
@@ -230,6 +238,7 @@ private final class TLSHandshakeWaiter: ChannelInboundHandler, RemovableChannelH
                 }
             }
             ChannelTuning.stopReading(channel)
+            onNegotiated?(negotiated)
             context.pipeline.syncOperations.removeHandler(context: context, promise: nil)
             promise.succeed(channel)
         }

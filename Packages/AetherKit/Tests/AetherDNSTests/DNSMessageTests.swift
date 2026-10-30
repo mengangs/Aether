@@ -231,7 +231,9 @@ struct DNSWireTests {
         #expect(DNSUpstreamSpec("[2001:db8::53]:53") == .udp(host: "2001:db8::53", port: 53))
         #expect(DNSUpstreamSpec("2001:db8::53") == .udp(host: "2001:db8::53", port: 53))
         #expect(DNSUpstreamSpec("https://dns.example/dns-query") == .https("https://dns.example/dns-query"))
-        #expect(DNSUpstreamSpec("tls://dns.example")?.isSupported == false)
+        // DoH / DoT 自 M3-11 起由引擎注入的工厂实现；DoQ 在 M7。
+        #expect(DNSUpstreamSpec("tls://dns.example")?.isSupported == true)
+        #expect(DNSUpstreamSpec("quic://dns.example")?.isSupported == false)
         #expect(DNSUpstreamSpec("dns.example") == nil)
         #expect(DNSUpstreamSpec("192.0.2.53:0") == nil)
     }
