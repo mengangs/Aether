@@ -273,8 +273,10 @@ public final class SOCKS5ClientUDPAssociation: OutboundUDPAssociation, @unchecke
             .map { datagram in
                 let association = SOCKS5ClientUDPAssociation(control: control, datagram: datagram, relay: relay)
                 receiver.association = association
-                // 控制连接上不再有数据；它读到 EOF 或关闭即关联结束。
+                // 控制连接上不再有数据；它读到 EOF 或关闭即关联结束。必须保持读取：kqueue（Apple 平台）只在
+                // 有读取兴趣时报告对端 EOF，握手后停止读取会使关联永远察觉不到服务器关闭了控制连接。
                 try? control.pipeline.syncOperations.addHandler(ControlWatcher())
+                ChannelTuning.startReading(control)
                 control.closeFuture.whenComplete { _ in association.close() }
                 datagram.closeFuture.whenComplete { _ in association.close() }
                 return association

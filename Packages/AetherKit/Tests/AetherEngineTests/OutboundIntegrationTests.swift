@@ -89,8 +89,10 @@ struct SOCKS5ConnectorTests {
         #expect(received.withLockedValue { $0.first?.1 } == target)
         // 服务器端关联结束（控制连接关闭）后客户端关联随之关闭。
         let serverSide = try #require(acceptor.associations.withLockedValue { $0.first })
+        let closed = NIOLockedValueBox(false)
+        association.closeFuture.whenComplete { _ in closed.withLockedValue { $0 = true } }
         try await threads.eventLoop.submit { serverSide.close() }.get()
-        try await association.closeFuture.get()
+        #expect(await Poll.until { closed.withLockedValue { $0 } })
 
         try await inbound.close().get()
         try await echo.close()

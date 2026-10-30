@@ -361,6 +361,8 @@ Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runne
 
 `ios.yml` 的步骤随 M0 任务逐步补全：M0-05 只在 macOS 主机上运行架构检查与 `swift test`；M0-03 加入 hev 缓存与 `build-hev.sh`；M0-04 加入 XcodeGen 与 `xcodebuild build`。
 
+macOS 主机上的包测试（M2-06 起）：先单独构建（`swift build --build-tests`），再串行运行（`swift test --skip-build --no-parallel`），由 `Scripts/ci-run.sh` 的看门狗（`CI_RUN_TIMEOUT`，当前 300 秒）限时；超时后打印 `swift test` 与测试进程的全部线程调用栈（lldb，失败时用 `sample`），再结束整个进程树。测试进程的输出经管道转发时有缓冲，日志中最后一条 `started` 不一定是卡住的测试，以调用栈与事件循环线程编号为准。
+
 项目直接在 `main` 上开发，不使用 PR。每次推送 `main` 后 `core.yml` 与 `ios.yml` 必须全部通过；任一失败时优先修复，修到通过后再开始下一个任务。
 
 ## 8. 版本号与发布

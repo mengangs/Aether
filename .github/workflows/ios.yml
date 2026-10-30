@@ -53,7 +53,8 @@ jobs:
         run: Scripts/ci-run.sh swift build --package-path Packages/AetherKit --build-tests
 
       - name: Package tests (macOS host)
-        # 串行运行：一旦某个测试卡住，日志中最后一条 started 即为它；看门狗超时后打印测试进程的线程调用栈并结束它。
+        # 串行运行，看门狗超时后打印 swift test 与测试进程的线程调用栈并结束它们（docs/03 §7）。
+        # 测试进程的输出有缓冲：最后一条 started 不一定是卡住的测试，以调用栈为准。
         timeout-minutes: 15
         env:
           CI_RUN_TIMEOUT: "300"

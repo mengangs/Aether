@@ -21,11 +21,8 @@ kill_tree() {
 }
 
 dump_stacks() {
-    local pid trace
+    local pid
     ps -axo pid,ppid,stat,etime,command | grep -E "swift|xctest" | grep -v grep | cut -c1-220
-    for trace in "${TMPDIR:-/tmp}"/aether-test-trace*.log /tmp/aether-test-trace*.log; do
-        [[ -f "${trace}" ]] && { echo "::group::${trace}"; tail -200 "${trace}"; echo "::endgroup::"; }
-    done
     for pid in $(pgrep -f "swiftpm-testing-helper|\.xctest|xctest |swift-package|swift-test"); do
         echo "::group::Stacks of ${pid}: $(ps -o command= -p "${pid}" | cut -c1-200)"
         if [[ "$(uname)" == "Darwin" ]]; then
