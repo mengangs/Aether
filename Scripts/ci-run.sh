@@ -21,8 +21,12 @@ kill_tree() {
 }
 
 dump_stacks() {
-    local pid
-    for pid in $(pgrep -f "swiftpm-testing-helper|\.xctest|xctest "); do
+    local pid trace
+    ps -axo pid,ppid,stat,etime,command | grep -E "swift|xctest" | grep -v grep | cut -c1-220
+    for trace in "${TMPDIR:-/tmp}"/aether-test-trace*.log /tmp/aether-test-trace*.log; do
+        [[ -f "${trace}" ]] && { echo "::group::${trace}"; tail -200 "${trace}"; echo "::endgroup::"; }
+    done
+    for pid in $(pgrep -f "swiftpm-testing-helper|\.xctest|xctest |swift-package|swift-test"); do
         echo "::group::Stacks of ${pid}: $(ps -o command= -p "${pid}" | cut -c1-200)"
         if [[ "$(uname)" == "Darwin" ]]; then
             lldb --batch -p "${pid}" -o "thread backtrace all" -o "detach" 2>&1 | head -2000 \
@@ -58,7 +62,7 @@ fi
 
 if [[ ${rc} -ne 0 ]]; then
     sed -E 's/\x1b\[[0-9;]*m//g' "${LOG}" \
-        | grep -E "error:|warning: .*(Sendable|concurrency)|✘|Test .* failed|Fatal error|fatal error" \
+        | grep -E "error:|warning: .*(Sendable|concurrency)|✘|Test .* failed after|Fatal error|fatal error" \
         | grep -v -E "^error: (fatalError|Build failed)$|^[[:space:]]*\|" \
         | awk '!seen[$0]++' \
         | head -40 \

@@ -56,7 +56,7 @@ jobs:
         # 串行运行：一旦某个测试卡住，日志中最后一条 started 即为它；看门狗超时后打印测试进程的线程调用栈并结束它。
         timeout-minutes: 15
         env:
-          CI_RUN_TIMEOUT: "480"
+          CI_RUN_TIMEOUT: "300"
         run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --skip-build --no-parallel
 
       - name: Install XcodeGen

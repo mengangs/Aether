@@ -374,11 +374,23 @@ struct DataPlaneDeterministicTests {
 
     @Test("Flows idle in both directions are closed after the idle timeout")
     func idleTimeout() throws {
+        // 临时诊断（macOS CI 卡住）：写入文件，由 CI 看门狗超时后打印。
         func trace(_ message: String) {
-            FileHandle.standardError.write(Data("TRACE idleTimeout: \(message)\n".utf8))
+            let url = URL(fileURLWithPath: "/tmp/aether-test-trace.log")
+            let line = Data("idleTimeout: \(message)\n".utf8)
+            if let handle = try? FileHandle(forWritingTo: url) {
+                handle.seekToEndOfFile()
+                handle.write(line)
+                try? handle.close()
+            } else {
+                try? line.write(to: url)
+            }
         }
+        trace("body entered")
         let loop = EmbeddedEventLoop()
-        trace("loop.now=\(loop.now) existential.now=\((loop as any EventLoop).now)")
+        trace("loop created")
+        trace("loop.now=\(loop.now)")
+        trace("existential.now=\((loop as any EventLoop).now)")
         let pair = try makePair(loop: loop, idle: .seconds(300))
         trace("pair ready")
         loop.advanceTime(by: .seconds(200))
@@ -392,6 +404,7 @@ struct DataPlaneDeterministicTests {
         trace("advanced 501, active=\(pair.inbound.isActive)")
         #expect(!pair.inbound.isActive)
         #expect(!pair.outbound.isActive)
+        trace("body finished")
     }
 
     @Test("Memory pressure refuses new flows with NET-041 until it expires")
