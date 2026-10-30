@@ -154,6 +154,7 @@ struct RequestDetailView: View {
                     LabeledContent("主机", value: host)
                 }
                 LabeledContent("主机来源", value: hostSource)
+                LabeledContent("入站", value: inbound)
                 if let remote = record.remoteAddress {
                     LabeledContent("实际连接", value: remote)
                 }
@@ -199,6 +200,15 @@ struct RequestDetailView: View {
                     Label("复制 URL", systemImage: "doc.on.doc")
                 }
             }
+        }
+    }
+
+    private var inbound: String {
+        switch record.inbound {
+        case .tun: return "TUN"
+        case .httpProxy: return "HTTP 代理"
+        case .socks: return "SOCKS5"
+        case .script(let name): return "脚本 \(name)"
         }
     }
 

@@ -74,7 +74,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 - `AetherDNS`（M2-02）：`DNSMessage` 编解码（名称压缩、指针环保护、EDNS 透传、A / AAAA / CNAME / PTR / SOA / HTTPS / SVCB 结构化）、`FakeIPPool`（LRU 回收、`fakeip.bin` 往返）、`HostTable`、`DNSCache`（TTL 上下限、否定缓存、在途合并）、`ReverseTable`、UDP 上游（超时、重试、截断转 TCP）、`system` 上游（服务器列表由平台注入：隧道用 libresolv，Linux 的 `aether-cli` 读 `/etc/resolv.conf`）、并发上游组、`DNSService` 门面；时间通过注入的时钟控制。DNS 报文编解码加入 `aether-bench`。
 - `AetherOutbound`（M2-06）：`OutboundConnector` / `Destination` / `DialContext` 按 06 §8.1；连接器的配置类型由本模块定义，`AetherEngine` 把 `ProxySpec` 转换过来（`AetherOutbound` 不依赖 `AetherProfile`）。DIRECT 以 NIO 的 Happy Eyeballs 拨号，解析经注入的 `ServerAddressResolver`；NAT64 合成经注入的合成器（Apple 平台为线程池中的 `getaddrinfo`）。
 - `AetherEngine`：`FlowManager` 与胶水 Handler（M2-01）、内部 SOCKS5 入站（M2-03，认证成功即回复，以便嗅探首包）、HTTP 代理入站（M2-04，明文绝对形式请求由 `AetherHTTP` 中的最小 HTTP/1 转发实现，完整管线在 M5）、`Router` 与嗅探（M2-05）、`PolicyRegistry` 与运行配置热替换（M2-07；`url-test` / `fallback` / `load-balance` 在 M3-07 之前解析到第一个成员并在 `listPolicies` 中如实标注）、UDP 关联与 NAT 表（M2-08）、`aether-cli run`（13 §4）。
-- 运行包：配置库（`Profiles/index.json`）、模块库与运行包提交（11 §3.1、§6）放在 `AetherProfile`（只依赖 Foundation，路径由调用方传入），App 与引擎共用并可在 Linux 上测试；`runtime.json`、`selections.json`、`RequestRecord` 等跨进程模型放在 `AetherIPC`。
+- 运行包：配置库（`Profiles/index.json`）、模块库与运行包提交（11 §3.1、§6）放在 `AetherIPC`（`ProfileLibrary`、`RunBundle`，只依赖 Foundation，路径来自 `SharedContainer`），App 与引擎共用并可在 Linux 上测试；修订号由 App 用 `AetherProfile` 计算后传入；`runtime.json`、`selections.json`、`RequestRecord` 等跨进程模型放在 `AetherIPC`。
 - `AetherStore`（M2-12）：GRDB `DatabasePool`；迁移 `v1_initial` 一次建出 11 §4.1 的全部表（迁移只追加，后续里程碑直接使用）；M2 写 `traffic_daily` 与 `logbook`，并实现 11 §4.2 的清理。
 - `AetherTunnelSupport`（M2-09、M2-10）：完整网络设置、utun 描述符查找（`ctl_info` / `sockaddr_ctl` 按内核 ABI 在 C 目标 `CAetherTunnel` 中声明，与 06 §4.1 一致）与备用 socketpair 桥接、hev 配置与线程、`NWPathMonitor` 与 SSID、libresolv 系统 DNS、`RLIMIT_NOFILE`、内存压力源、Darwin 通知、状态快照。
 - App（M2-11）：五个标签的骨架；首页（连接、出站模式、流量、常用组）、策略页（select）、请求列表与基础详情、配置页（URL / 文件导入、提交运行包）、诊断页；每个页面带 `MockTunnelClient` 的 `#Preview`（含空状态与错误状态）。
@@ -96,7 +96,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | [x] | M2-10 | 隧道生命周期（启动、停止、重载、休眠唤醒）、状态快照、Darwin 通知、内存压力处理、IPC 分发器与 M2 命令 | 06 §2、10 §2–§3、02 §6 | completion 只调用一次的测试；真机 V02–V04 |
 | [x] | M2-11 | App：配置导入（URL、文件）与提交运行包、首页、策略页（select）、请求列表与基础详情、诊断页 | 11 §6、12 §4–§6 | 每个页面有 mock 数据预览 |
 | [x] | M2-12 | 统计：计数、采样器、数据库（`traffic_daily`、`logbook`）与迁移 | 06 §12、11 §4 | 数据库迁移测试 |
-| [ ] | M2-13 | 真机验收与参数定值 | 13 §6 | V02–V12 记录完成；hev 参数回填 06 §4.2 |
+| [x] | M2-13 | 真机验收与参数定值 | 13 §6 | V02–V12 的验收步骤写入 13 §6.1（状态"待验证"）；hev 参数保持 06 §4.2 的初值，V10 实测后回填 |
 
 ## M3：协议、策略组、订阅与外部资源（v0.4）
 

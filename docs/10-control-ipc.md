@@ -49,7 +49,7 @@ public struct IPCError: Error, Codable, Sendable {
 | 命令 | 参数 | 返回 | 里程碑 |
 | --- | --- | --- | --- |
 | `getStatus` | — | `TunnelStatus`（§3） | M0 |
-| `getMemoryInfo` | — | footprint、可用额度、各组件估算、hev 统计 | M2 |
+| `getMemoryInfo` | — | footprint、可用额度、各组件估算、hev 统计、系统 DNS 服务器 | M2 |
 | `reloadProfile` | `expectedRevision` | 新修订号、诊断摘要 | M2 |
 | `setOutboundMode` | `mode`：`rule` / `global` / `direct` | — | M2 |
 | `setGlobalPolicy` | `policy` | — | M2 |

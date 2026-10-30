@@ -71,6 +71,7 @@ private struct ContainerFixture {
             reasserts.withLockedValue { $0.append((settings.mtu, restartHev)) }
         }
         hooks.memory = { (40 * 1024 * 1024, 10 * 1024 * 1024) }
+        hooks.systemDNSServers = { [IPAddress("192.0.2.53")!] }
         return TunnelRuntime(container: container, notificationPrefix: "com.example.aether", hooks: hooks)
     }
 
@@ -178,6 +179,7 @@ struct TunnelRuntimeTests {
             return
         }
         #expect(memory.footprintBytes == 40 * 1024 * 1024 && memory.components["tcpFlows"] == 0)
+        #expect(memory.systemDNSServers == ["192.0.2.53"])
 
         // 重载：规则变化不重新应用网络设置；MTU 变化重新应用并重启 hev。
         try fixture.commit(

@@ -3,7 +3,7 @@ import Foundation
 
 // M2 命令的返回结构（docs/10 §2.2）。字节计数一律 64 位（docs/11 §4.5）。
 
-/// `getMemoryInfo`：footprint、剩余额度、各组件估算、hev 统计（docs/02 §6）。
+/// `getMemoryInfo`：footprint、剩余额度、各组件估算、hev 统计（docs/02 §6）与系统 DNS 服务器。
 public struct MemoryInfo: Codable, Sendable, Equatable {
     /// 进程 footprint；平台不提供时为 nil。
     public var footprintBytes: UInt64?
@@ -12,15 +12,18 @@ public struct MemoryInfo: Codable, Sendable, Equatable {
     /// 各组件的估算（组件名 → 字节或条目数，键见 `components` 的说明）。
     public var components: [String: UInt64]
     public var hev: HevStatisticsSummary?
+    /// 隧道当前使用的系统 DNS 服务器（诊断页，docs/12 §8）。
+    public var systemDNSServers: [String]
 
     public init(
         footprintBytes: UInt64? = nil, availableBytes: UInt64? = nil, components: [String: UInt64] = [:],
-        hev: HevStatisticsSummary? = nil
+        hev: HevStatisticsSummary? = nil, systemDNSServers: [String] = []
     ) {
         self.footprintBytes = footprintBytes
         self.availableBytes = availableBytes
         self.components = components
         self.hev = hev
+        self.systemDNSServers = systemDNSServers
     }
 }
 

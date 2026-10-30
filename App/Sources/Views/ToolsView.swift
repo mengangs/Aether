@@ -27,6 +27,11 @@ struct DiagnosticsView: View {
     @State private var memory: MemoryInfo?
     @State private var error: IPCError?
 
+    private var systemDNS: String {
+        guard let servers = memory?.systemDNSServers, !servers.isEmpty else { return "—" }
+        return servers.joined(separator: ", ")
+    }
+
     var body: some View {
         List {
             Section("版本") {
@@ -56,6 +61,7 @@ struct DiagnosticsView: View {
                         LabeledContent("接口", value: status.network.interfaceType ?? "—")
                         LabeledContent("SSID", value: status.network.ssid ?? "—")
                         LabeledContent("修订号", value: String(status.network.revision))
+                        LabeledContent("系统 DNS", value: systemDNS)
                     }
                 }
             } else {

@@ -153,7 +153,8 @@ extension MockTunnelClient.Fixtures {
             footprintBytes: 18_874_368, availableBytes: 31_457_280,
             components: ["tcpFlows": 42, "udpAssociations": 3, "activeRequests": 45, "finishedRequests": 500],
             hev: HevStatisticsSummary(
-                txPackets: 120_000, txBytes: 90_000_000, rxPackets: 180_000, rxBytes: 720_000_000))
+                txPackets: 120_000, txBytes: 90_000_000, rxPackets: 180_000, rxBytes: 720_000_000),
+            systemDNSServers: ["192.0.2.53", "2001:db8::53"])
         return Self(
             status: status, memory: memory, policies: policies, traffic: traffic, requests: [https, failed, udp])
     }

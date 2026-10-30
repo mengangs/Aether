@@ -361,7 +361,7 @@ public actor TunnelRuntime {
         }
         return MemoryInfo(
             footprintBytes: memory.footprint, availableBytes: memory.available, components: components,
-            hev: hooks.hevStatistics())
+            hev: hooks.hevStatistics(), systemDNSServers: hooks.systemDNSServers().map(\.description))
     }
 
     // MARK: - 内存压力、网络变化、休眠（docs/02 §6、docs/06 §11、§2.5）
