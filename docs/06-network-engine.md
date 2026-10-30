@@ -183,6 +183,7 @@ misc:
 - 绝对形式请求（`GET http://host/path HTTP/1.1`）：交给 HTTP 管线（[08 §5](08-mitm-rewrite.md#5-http-处理管线)），按请求逐个路由；URL 与 User-Agent 对规则可见。去掉逐跳头（`Proxy-Connection`、`Proxy-Authorization`、`Connection` 列出的头等）。
 - 同一客户端连接上的后续请求若主机不同，按新主机路由并使用对应的上游连接。
 - 非代理形式的请求（如 `GET / HTTP/1.1`）回复 `400`。
+- 实现（M2）：管线为请求解码器、响应编码器、NIO 的 `HTTPServerPipelineHandler`（客户端流水线发送的后续请求在当前响应结束前缓存并暂停读取）、协议错误处理（解析失败回复 `400`）与 `AetherHTTP` 中的 `HTTPProxyServerHandler`。一次只处理一个请求；请求体按上游可写性读取，响应体按客户端可写性读取。路由给出的复用键（策略 + 目标）与当前上游连接相同且该连接可复用时直接复用，否则关闭旧连接、新建连接。上游在请求体发完之前就结束响应时，剩余请求体读完丢弃，该上游连接不再复用。出站失败回复 `502`（正文只含错误码）。`https://` 的绝对形式视为无效请求。客户端连接空闲 60 秒关闭。M2 的明文转发经 `CONNECT` 隧道到达 HTTP 上游，向 HTTP 上游以绝对形式转发（`always-use-connect = false`）随 M5 的 HTTP 管线实现。
 
 ### 5.3 局域网共享（M7）
 

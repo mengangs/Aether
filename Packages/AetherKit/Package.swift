@@ -42,7 +42,10 @@ var targets: [Target] = [
     .target(name: "AetherScriptCore", dependencies: ["AetherFoundation"]),
     .target(
         name: "AetherHTTP",
-        dependencies: ["AetherOutbound", "AetherRules", "AetherCertificates", "AetherScriptCore"]
+        dependencies: [
+            "AetherOutbound", "AetherRules", "AetherCertificates", "AetherScriptCore",
+            .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOHTTP1", package: "swift-nio"),
+        ]
     ),
     .target(name: "AetherIPC", dependencies: ["AetherFoundation"]),
     .target(name: "AetherStore", dependencies: ["AetherFoundation"]),
@@ -51,6 +54,7 @@ var targets: [Target] = [
         dependencies: [
             "AetherProfile", "AetherRules", "AetherDNS", "AetherHTTP", "AetherIPC", "AetherStore",
             .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOHTTP1", package: "swift-nio"),
         ]
     ),
     .executableTarget(name: "aether-cli", dependencies: ["AetherEngine"]),
@@ -81,7 +85,13 @@ var targets: [Target] = [
     .testTarget(name: "AetherOutboundTests", dependencies: ["AetherOutbound"]),
     .testTarget(name: "AetherCertificatesTests", dependencies: ["AetherCertificates"]),
     .testTarget(name: "AetherScriptCoreTests", dependencies: ["AetherScriptCore"]),
-    .testTarget(name: "AetherHTTPTests", dependencies: ["AetherHTTP"]),
+    .testTarget(
+        name: "AetherHTTPTests",
+        dependencies: [
+            "AetherHTTP", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOHTTP1", package: "swift-nio"),
+        ]
+    ),
     .testTarget(name: "AetherIPCTests", dependencies: ["AetherIPC", "AetherTestSupport"]),
     .testTarget(name: "AetherStoreTests", dependencies: ["AetherStore"]),
     .testTarget(
@@ -89,7 +99,7 @@ var targets: [Target] = [
         dependencies: [
             "AetherEngine", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOEmbedded", package: "swift-nio"),
-            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"), .product(name: "NIOHTTP1", package: "swift-nio"),
         ]
     ),
 ]
