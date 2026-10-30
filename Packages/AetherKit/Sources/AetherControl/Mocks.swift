@@ -104,7 +104,7 @@ extension MockTunnelClient.Fixtures {
             PolicyList.Node(name: "JP-01", type: "socks5", supportsUDP: true, available: true, unavailableReason: nil),
             PolicyList.Node(
                 name: "SG-01", type: "snell", supportsUDP: false, available: false,
-                unavailableReason: "Unsupported proxy type"),
+                unavailableReason: "snell is not supported"),
         ]
         let policies = PolicyList(groups: groups, nodes: nodes)
         var samples: [TrafficReport.Sample] = []

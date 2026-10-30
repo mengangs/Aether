@@ -327,7 +327,7 @@ public struct DialContext: Sendable {
 | Shadowsocks AEAD | shadowsocks.org AEAD 规范 | 主密钥 `EVP_BytesToKey(password)`（MD5）；每会话随机 salt；子密钥 `HKDF-SHA1(key, salt, "ss-subkey")`；分块：加密的 2 字节长度（≤ 0x3FFF）+ 标签，加密载荷 + 标签；nonce 为小端递增计数器；首块载荷以 SOCKS 地址格式的目标开头；UDP 每包独立 salt，nonce 为零 | M3 |
 | Shadowsocks 2022 | SIP022 | PSK 为 Base64 的 16 / 32 字节；会话子密钥 `BLAKE3 derive_key("shadowsocks 2022 session subkey", key ‖ salt)`；请求头含类型、时间戳（与服务器偏差需在 ±30 秒内）、变长头长度；变长头含地址、填充与首包载荷；校验响应头中的请求 salt。UDP 使用单独的头部加密；chacha20 变体的 UDP 需要 XChaCha20-Poly1305，放到 M7 | M3（TCP 与 AES 变体 UDP） |
 | Trojan | trojan-gfw 协议文档 | TLS 之上：`hex(SHA224(password))` + CRLF + 命令（1 CONNECT / 3 UDP）+ 地址 + 端口 + CRLF；UDP 包格式为 地址 + 端口 + 2 字节长度 + CRLF + 载荷 | M3 |
-| VMess（AEAD） | xtls.github.io VMess 协议文档 | `cmdKey = MD5(uuid ‖ 固定 GUID)`；AuthID 为 AES-128 单块加密的"时间戳 + 随机数 + CRC32"；请求头以 AEAD 加密，密钥由 VMess AEAD KDF（嵌套 HMAC-SHA256）派生；数据按 AEAD 分块；响应头同样 AEAD 解密。选项只置 ChunkStream，不置 ChunkMasking 与 GlobalPadding（可不实现 SHAKE128）——🔬 互通测试中确认主流服务端接受，否则补实现 SHAKE128 | M3 |
+| VMess（AEAD） | xtls.github.io VMess 协议文档 | `cmdKey = MD5(uuid ‖ 固定 GUID)`；AuthID 为 AES-128 单块加密的"时间戳 + 随机数 + CRC32"；请求头以 AEAD 加密，密钥由 VMess AEAD KDF（嵌套 HMAC-SHA256）派生；数据按 AEAD 分块；响应头同样 AEAD 解密。选项只置 ChunkStream，不置 ChunkMasking 与 GlobalPadding，不实现 SHAKE128——互通测试已确认 Xray-core 25.10.15 接受（M3-04，TCP / WS / WS+TLS 与三种加密方式） | M3 |
 | VLESS | xtls.github.io VLESS 协议文档 | 版本 0 + 16 字节 UUID + 附加信息长度 0 + 命令 + 端口 + 地址；响应为版本 + 附加信息；之后为原始数据。UDP 为 2 字节长度前缀的包。必须在 TLS 或 WS+TLS 之上使用 | M3 |
 | Hysteria2 / TUIC v5 | 各自公开规范 | 基于 QUIC，需要先做技术预研（Swift 或宽松许可证 C 库），见 [14 M7](14-roadmap.md#m7进阶v1x) | M7 |
 | WireGuard | 白皮书 | 需要用户态 TCP/IP 栈把流转换为 IP 包，预研 | M7 |
@@ -337,6 +337,8 @@ Shadowsocks AEAD 的实现（M3-01）：连接后立即发送 salt 与只含目�
 Trojan 的实现（M3-03）：TLS 总是开启（未写 TLS 参数时用默认参数，完整验证），`ws=true` 时在 TLS 之上叠加 WebSocket；连接后立即发送请求头；服务端没有应答，密码错误时服务端关闭连接（或按其回落配置转发），连接本身无法判断凭据。UDP 关联为一条独立的 TLS（或 WS + TLS）连接，请求头随第一个数据报发出、地址取该数据报的目标；流不可写时新数据报直接丢弃并计数（不在用户态排队），流关闭即关联结束，帧格式错误时关闭流。SHA-224 在 `AetherOutbound/Crypto/SHA224.swift` 中实现，测试向量为 FIPS 180-4 / NIST 示例与 Python `hashlib` 在填充边界处的结果。
 
 VLESS 的实现（M3-05）：节点必须 `tls=true`（否则不可用并如实标注），`ws=true` 时叠加 WebSocket；连接后立即发送请求头；服务端通常把响应头与第一批数据一起发送，因此响应头在数据到达时剥掉（先交出其后的数据再移除剥离 Handler），不阻塞连接的返回，版本不为 0 时以 `NET-032` 关闭。UDP 的一条连接只能发往一个目标：关联内每个目标一条连接（命令 2，数据报为 2 字节长度 ‖ 载荷），最多 32 个目标，超出时关闭最久未发送的一个；连接建立期间每个目标最多排队 32 个数据报（与 §10 的待发队列一致，超出丢弃最旧的），建立失败时丢弃并在下一个数据报时重试。VMess 的 UDP 同样按目标建立连接。
+
+VMess 的实现（M3-04）：`encrypt-method=auto` 取 AES-128-GCM；`tls=true` 时叠加 TLS，`ws=true` 时叠加 WebSocket。连接后立即发送 AEAD 请求头（指令中随机填充 0–15 字节）；数据块的明文每块最多 16 KiB 减去标签；输出方向关闭时发送空块（不关闭底层连接，服务端据此结束上行），收到空块时向上报告输入结束，两个方向都结束后关闭连接。响应头在第一批数据到达时解密，长度、内容或响应认证字节不符时以 `NET-032` 关闭。UDP 每个目标一条连接（命令 2，同 VLESS 的按目标关联），每个数据块是一个数据报，超过一块上限的数据报丢弃。AES-128 单块加密、CRC32、FNV-1a 与嵌套 HMAC KDF 在 `AetherOutbound/Crypto/` 中实现：AES 用 FIPS-197 附录 C.1、CRC32 用标准校验值、FNV-1a 用参考值，KDF、AuthID、请求头、数据块与响应头用 `Tests/Fixtures/vectors/vmess/generate.py`（Python `cryptography` 独立实现）生成的向量。
 
 密码学原语来自 swift-crypto。缺少的原语（SHA-224、AES 单块加密、CRC32、FNV-1a、HChaCha20 等）在 `AetherOutbound/Crypto/` 中实现，每个都必须有来自 RFC 或官方实现的测试向量。
 

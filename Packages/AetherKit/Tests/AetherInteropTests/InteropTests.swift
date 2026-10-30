@@ -112,6 +112,22 @@ struct InteropCase: Sendable, CustomTestStringConvertible {
                 server.webSocket = WebSocketClientOptions(path: "/vless")
                 return VLESSConnector(name: "VLESS", server: server, uuid: vlessUUID($0), udpEnabled: true)!
             })
+        let vmessVariants: [(String, String, VMessSecurity, Bool, Bool)] = [
+            ("VMess TCP aes-128-gcm", "XRAY_VMESS_TCP_PORT", .aes128GCM, false, false),
+            ("VMess TCP chacha20-poly1305", "XRAY_VMESS_TCP_PORT", .chacha20Poly1305, false, false),
+            ("VMess TCP none", "XRAY_VMESS_TCP_PORT", VMessSecurity.none, false, false),
+            ("VMess WS", "XRAY_VMESS_WS_PORT", .aes128GCM, true, false),
+            ("VMess WS+TLS", "XRAY_VMESS_WS_TLS_PORT", .aes128GCM, true, true),
+        ]
+        for (name, key, security, webSocket, tls) in vmessVariants {
+            cases.append(
+                InteropCase(name: name, udp: true) {
+                    var server = Interop.server(key, tls: tls)
+                    server.webSocket = webSocket ? WebSocketClientOptions(path: "/vmess") : nil
+                    return VMessConnector(
+                        name: "VMess", server: server, uuid: vlessUUID($0), security: security, udpEnabled: true)!
+                })
+        }
         let shadowsocks: [(String, ShadowsocksAEADMethod)] = [
             ("SS_AES128_PORT", .aes128GCM), ("SS_AES256_PORT", .aes256GCM), ("SS_CHACHA_PORT", .chacha20IETFPoly1305),
         ]

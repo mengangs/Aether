@@ -44,6 +44,23 @@
         "network": "ws", "wsSettings": { "path": "/vless" },
         "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] }
       }
+    },
+    {
+      "tag": "vmess-tcp", "listen": "127.0.0.1", "port": 21401, "protocol": "vmess",
+      "settings": { "clients": [{ "id": "b831381d-6324-4d53-ad4f-8cda48b30811" }] }
+    },
+    {
+      "tag": "vmess-ws", "listen": "127.0.0.1", "port": 21402, "protocol": "vmess",
+      "settings": { "clients": [{ "id": "b831381d-6324-4d53-ad4f-8cda48b30811" }] },
+      "streamSettings": { "network": "ws", "wsSettings": { "path": "/vmess" } }
+    },
+    {
+      "tag": "vmess-ws-tls", "listen": "127.0.0.1", "port": 21403, "protocol": "vmess",
+      "settings": { "clients": [{ "id": "b831381d-6324-4d53-ad4f-8cda48b30811" }] },
+      "streamSettings": {
+        "network": "ws", "wsSettings": { "path": "/vmess" },
+        "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] }
+      }
     }
   ],
   "outbounds": [{ "protocol": "freedom" }]

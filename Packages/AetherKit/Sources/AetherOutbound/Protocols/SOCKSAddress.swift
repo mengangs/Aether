@@ -77,3 +77,29 @@ public enum SOCKSAddress {
         }
     }
 }
+
+/// V2Ray 系协议（VLESS、VMess）的地址格式：2 字节端口 ‖ 地址类型（1 IPv4、2 域名、3 IPv6）‖ 地址。
+public enum PortFirstAddress {
+    public static func write(_ destination: Destination, to buffer: inout ByteBuffer) {
+        buffer.writeInteger(destination.port)
+        switch destination {
+        case .ip(.v4(let v4), _):
+            buffer.writeInteger(UInt8(1))
+            buffer.writeInteger(v4.value)
+        case .domain(let host, _):
+            let name = Array(host.value.utf8.prefix(255))
+            buffer.writeInteger(UInt8(2))
+            buffer.writeInteger(UInt8(name.count))
+            buffer.writeBytes(name)
+        case .ip(.v6(let v6), _):
+            buffer.writeInteger(UInt8(3))
+            buffer.writeInteger(v6.high)
+            buffer.writeInteger(v6.low)
+        }
+    }
+
+    /// 编码后的长度（与 SOCKS 地址格式相同）。
+    public static func length(of destination: Destination) -> Int {
+        SOCKSAddress.length(of: destination)
+    }
+}

@@ -140,10 +140,7 @@ public final class RuntimeConfiguration: Sendable {
         }
         let identity = nodeIdentity(spec)
         guard spec.isUsable, let host = spec.server, let port = spec.port else {
-            return .proxy(
-                ProxyNode(
-                    name: spec.name, type: spec.type, connector: nil, unavailableReason: "Unsupported proxy type",
-                    supportsUDP: false, identity: identity, blockQUIC: spec.blockQUIC))
+            return unavailable(spec, identity: identity, reason: "\(spec.type) is not supported", notes: &notes)
         }
         let server = ProxyServer(
             host: host, port: port,
@@ -207,6 +204,27 @@ public final class RuntimeConfiguration: Sendable {
                     uuid: uuid, udpEnabled: spec.udpRelay)
             else {
                 return unavailable(spec, identity: identity, reason: "Invalid VLESS UUID", notes: &notes)
+            }
+            return .proxy(
+                ProxyNode(
+                    name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
+                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
+        case .vmess(let uuid, let cipher):
+            let security: VMessSecurity
+            switch cipher {
+            case .auto, .aes128GCM: security = .aes128GCM
+            case .chacha20Poly1305: security = .chacha20Poly1305
+            case .none: security = .none
+            }
+            guard
+                let connector = VMessConnector(
+                    name: spec.name,
+                    server: ProxyServer(
+                        host: host, port: port, addressPreference: server.addressPreference, tls: server.tls,
+                        webSocket: spec.webSocket.map(webSocketOptions)),
+                    uuid: uuid, security: security, udpEnabled: spec.udpRelay)
+            else {
+                return unavailable(spec, identity: identity, reason: "Invalid VMess UUID", notes: &notes)
             }
             return .proxy(
                 ProxyNode(

@@ -17,20 +17,24 @@ public enum AEADAlgorithm: Sendable, Hashable {
         }
     }
 
-    /// 加密，返回 密文 ‖ 标签。
-    func seal(_ plaintext: some DataProtocol, key: SymmetricKey, nonce: [UInt8]) throws -> [UInt8] {
+    /// 加密，返回 密文 ‖ 标签。`additionalData` 为附加认证数据（可为空）。
+    func seal(
+        _ plaintext: some DataProtocol, key: SymmetricKey, nonce: [UInt8], additionalData: [UInt8] = []
+    ) throws -> [UInt8] {
         switch self {
         case .aes128GCM, .aes256GCM:
-            let box = try AES.GCM.seal(plaintext, using: key, nonce: AES.GCM.Nonce(data: nonce))
+            let box = try AES.GCM.seal(
+                plaintext, using: key, nonce: AES.GCM.Nonce(data: nonce), authenticating: additionalData)
             return Array(box.ciphertext) + Array(box.tag)
         case .chacha20Poly1305:
-            let box = try ChaChaPoly.seal(plaintext, using: key, nonce: ChaChaPoly.Nonce(data: nonce))
+            let box = try ChaChaPoly.seal(
+                plaintext, using: key, nonce: ChaChaPoly.Nonce(data: nonce), authenticating: additionalData)
             return Array(box.ciphertext) + Array(box.tag)
         }
     }
 
     /// 解密 密文 ‖ 标签；认证失败时抛出。
-    func open(_ sealed: [UInt8], key: SymmetricKey, nonce: [UInt8]) throws -> [UInt8] {
+    func open(_ sealed: [UInt8], key: SymmetricKey, nonce: [UInt8], additionalData: [UInt8] = []) throws -> [UInt8] {
         guard sealed.count >= Self.tagLength else { throw CryptoKitError.incorrectParameterSize }
         let split = sealed.count - Self.tagLength
         let ciphertext = sealed[..<split]
@@ -38,10 +42,10 @@ public enum AEADAlgorithm: Sendable, Hashable {
         switch self {
         case .aes128GCM, .aes256GCM:
             let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: nonce), ciphertext: ciphertext, tag: tag)
-            return Array(try AES.GCM.open(box, using: key))
+            return Array(try AES.GCM.open(box, using: key, authenticating: additionalData))
         case .chacha20Poly1305:
             let box = try ChaChaPoly.SealedBox(nonce: ChaChaPoly.Nonce(data: nonce), ciphertext: ciphertext, tag: tag)
-            return Array(try ChaChaPoly.open(box, using: key))
+            return Array(try ChaChaPoly.open(box, using: key, authenticating: additionalData))
         }
     }
 }

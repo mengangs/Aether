@@ -103,11 +103,14 @@ struct EngineTests {
         options.httpProxy = nil
         options.logbook = { entry in logbook.withLockedValue { $0.append(entry) } }
         options.persistTraffic = { deltas in traffic.withLockedValue { $0 += deltas } }
-        let node = "VM = vmess, vmess.example.com, 443, username=0b4b5a3e-0000-4000-8000-000000000000"
+        let node = "SN = snell, snell.example.com, 443, psk=test"
         let text = profile(rule: "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve").replacingOccurrences(
             of: "[Proxy Group]", with: "[Proxy]\n\(node)\n\n[Proxy Group]")
         let engine = try await Engine.start(configuration: configuration(text), options: options, threads: threads)
-        #expect(logbook.withLockedValue { $0 }.contains { $0.category == .profile && $0.message.contains("vmess") })
+        #expect(
+            logbook.withLockedValue { $0 }.contains {
+                $0.category == .profile && $0.message.contains("snell is not supported")
+            })
 
         let (channel, collector) = try await connect(engine, to: .ip(IPAddress("127.0.0.1")!, port: UInt16(echo.port)))
         try await channel.writeAndFlush(ByteBuffer(string: "count me"))

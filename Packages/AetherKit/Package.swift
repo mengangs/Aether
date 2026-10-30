@@ -106,7 +106,7 @@ var targets: [Target] = [
             "AetherOutbound", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOSSL", package: "swift-nio-ssl"),
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
-            .product(name: "Crypto", package: "swift-crypto"),
+            .product(name: "NIOEmbedded", package: "swift-nio"), .product(name: "Crypto", package: "swift-crypto"),
         ]
     ),
     .testTarget(name: "AetherCertificatesTests", dependencies: ["AetherCertificates"]),

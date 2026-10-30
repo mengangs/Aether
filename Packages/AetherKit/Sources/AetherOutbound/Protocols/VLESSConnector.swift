@@ -37,21 +37,7 @@ public struct VLESSConnector: OutboundConnector {
         buffer.writeBytes(uuid)
         buffer.writeInteger(UInt8(0))
         buffer.writeInteger(command)
-        buffer.writeInteger(destination.port)
-        switch destination {
-        case .ip(.v4(let v4), _):
-            buffer.writeInteger(UInt8(1))
-            buffer.writeInteger(v4.value)
-        case .domain(let host, _):
-            let name = Array(host.value.utf8.prefix(255))
-            buffer.writeInteger(UInt8(2))
-            buffer.writeInteger(UInt8(name.count))
-            buffer.writeBytes(name)
-        case .ip(.v6(let v6), _):
-            buffer.writeInteger(UInt8(3))
-            buffer.writeInteger(v6.high)
-            buffer.writeInteger(v6.low)
-        }
+        PortFirstAddress.write(destination, to: &buffer)
     }
 
     private func dial(command: UInt8, destination: Destination, context: DialContext) -> EventLoopFuture<any Channel> {

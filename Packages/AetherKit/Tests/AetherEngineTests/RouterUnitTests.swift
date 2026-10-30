@@ -133,7 +133,7 @@ struct RuntimeConfigurationTests {
         FINAL,Main
         """
 
-    @Test("Proxies become connectors; unsupported protocols are kept as unavailable nodes")
+    @Test("Proxies become connectors")
     func compileProxies() {
         let configuration = compile(profile)
         guard case .proxy(let https) = configuration.policies["HTTPS"] else {
@@ -152,7 +152,7 @@ struct RuntimeConfigurationTests {
             return
         }
         #expect(socks.supportsUDP)
-        #expect(vmess.connector == nil && vmess.unavailableReason != nil)
+        #expect(vmess.connector is VMessConnector)
         guard case .reject(.tinyGIF) = configuration.policies["Block"] else {
             Issue.record("alias missing")
             return
@@ -168,7 +168,7 @@ struct RuntimeConfigurationTests {
         #expect(configuration.isDNSTarget(IPAddress("192.0.2.99")!, port: 53))
         #expect(configuration.isDNSTarget(IPAddress("192.0.2.53")!, port: 5353))
         #expect(!configuration.isDNSTarget(IPAddress("192.0.2.99")!, port: 5353))
-        #expect(configuration.notes.contains { $0.contains("vmess") })
+
     }
 
     @Test("Shadowsocks AEAD nodes get connectors; 2022 methods and obfs=tls stay unavailable until M3-06")

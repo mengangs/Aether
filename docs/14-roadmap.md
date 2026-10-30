@@ -104,7 +104,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 
 - 顺序：M3-02 → M3-01 → M3-13 → M3-03 → M3-05 → M3-04 → M3-06 → M3-07 → M3-11 → M3-08 → M3-10 → M3-09 → M3-12 → M3-14。传输层（M3-02）先行，因为 Trojan / VMess / VLESS 都要叠加在 WebSocket 上；互通工作流（M3-13）紧跟第一个新协议，使之后每个协议在合入时就有真实服务端验证；测速（M3-07）需要的经策略 HTTP 请求在 `AetherHTTP` 中实现一个最小 HTTP/1.1 客户端，DoH（M3-11）与隧道侧资源下载（M3-08）复用它；订阅（M3-09）与远程规则集（M3-10）依赖资源管理（M3-08）。
 - 出站分层（06 §8.1）：`ProxyServer` 增加传输栈描述（TLS、WebSocket、simple-obfs），连接器 = Dialer → 传输层逐层叠加 → 协议 Handler；每层完成握手后把自身替换为纯编解码 Handler，最后统一交给回放 Handler，保持 M2 的 `autoRead` 约定。WebSocket 用 swift-nio 自带的 `NIOWebSocket`（不引入新包）。
-- 密码学（06 §8.4）：AEAD、哈希、HKDF 用 swift-crypto（`Insecure.MD5`、`HKDF<Insecure.SHA1>`、`AES.GCM`、`ChaChaPoly`）；swift-crypto 缺少的 SHA-224、AES 单块加密、CRC32、FNV-1a、VMess 的嵌套 HMAC KDF 在 `AetherOutbound/Crypto/` 中实现，每个都附 RFC / FIPS / 官方实现的测试向量；BLAKE3 用 M0 已建立的源码 target `CBlake3`（`Vendor/blake3` 的符号链接，关闭 SIMD 分支，已有官方测试向量），M3-06 直接使用。不实现 SHAKE128（VMess 只置 ChunkStream，🔬 由互通测试确认服务端接受）。
+- 密码学（06 §8.4）：AEAD、哈希、HKDF 用 swift-crypto（`Insecure.MD5`、`HKDF<Insecure.SHA1>`、`AES.GCM`、`ChaChaPoly`）；swift-crypto 缺少的 SHA-224、AES 单块加密、CRC32、FNV-1a、VMess 的嵌套 HMAC KDF 在 `AetherOutbound/Crypto/` 中实现，每个都附 RFC / FIPS / 官方实现的测试向量；BLAKE3 用 M0 已建立的源码 target `CBlake3`（`Vendor/blake3` 的符号链接，关闭 SIMD 分支，已有官方测试向量），M3-06 直接使用。不实现 SHAKE128（VMess 只置 ChunkStream；M3-04 的互通测试已确认 Xray 接受）。
 - 互通测试（M3-13）：开发会话的容器仓库（ghcr.io、Docker Hub）拉取被拒，而 GitHub Release 可以下载，因此服务端改为固定版本的官方 Release 二进制（Xray-core、shadowsocks-rust），由 `Scripts/interop/servers.env` 记录版本、下载地址与 SHA-256，`fetch-servers.sh` 下载并校验；simple-obfs 用 Ubuntu 软件源中的 `simple-obfs` 包；源站、UDP 回显与 DNS 服务由测试进程在回环地址上启动（`AetherTestSupport`）。工作流 `interop.yml` 在 `swift:6.4-noble` 容器中运行 `Scripts/interop/run.sh`（与本地一致），结果写入 CI 摘要；同步修改 13 §3.1 与 03 §2、§7 中的 docker compose 描述。测试目标 `AetherInteropTests` 没有 `AETHER_INTEROP` 环境变量时整体跳过，不影响 `swift test`。
 - 策略组（M3-07）：`PolicyRegistry` 保存测速结果（按节点身份）、被动失败计数与降级期；调度器使用注入的时钟，活跃判定、去抖、全局并发 8 均可在测试中控制；测速请求经 `AetherHTTP` 的最小客户端在所选连接器上完成（HTTPS 测速 URL 在隧道内做 TLS）。
 - 外部资源（M3-08）：元数据、缓存文件布局、校验与原子替换放在 `AetherIPC`（App 与隧道共用，只依赖 Foundation）；gzip 解压用纯 Swift 的 inflate 实现（RFC 1951 / 1952，带固定测试数据），不引入 zlib（03 §5.2 未登记）；App 侧下载用 `URLSession`，隧道侧用引擎的 HTTP 客户端并按 `resource-fetch-policy` 出站；调度、退避使用注入的时钟。
@@ -120,7 +120,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | [x] | M3-01 | Shadowsocks AEAD（TCP / UDP）、simple-obfs http | 06 §8.4–§8.5 | 测试向量 + 互通 |
 | [x] | M3-02 | WebSocket 传输 | 06 §8.5 | 与 NIO 服务端升级器的回环互通测试；与 Xray 的互通随 M3-13 起覆盖各协议的 WS 组合 |
 | [x] | M3-03 | Trojan（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
-| [ ] | M3-04 | VMess AEAD（TCP、WS、TLS、UDP） | 06 §8.4 | 互通；确认 ChunkMasking 结论并回填 |
+| [x] | M3-04 | VMess AEAD（TCP、WS、TLS、UDP） | 06 §8.4 | 互通；确认 ChunkMasking 结论并回填（06 §8.4：Xray 接受只置 ChunkStream） |
 | [x] | M3-05 | VLESS（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
 | [ ] | M3-06 | Shadowsocks 2022（TCP、AES 变体 UDP）、simple-obfs tls | 06 §8.4 | 测试向量 + 互通 |
 | [ ] | M3-07 | `url-test` / `fallback` / `load-balance`；测速与被动降级；IPC `testPolicies` / `getTestResults` | 06 §9 | 集成测试（模拟延迟与失败） |
