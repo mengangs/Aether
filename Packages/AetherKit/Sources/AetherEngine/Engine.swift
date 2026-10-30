@@ -3,6 +3,8 @@ import AetherFoundation
 import AetherIPC
 import AetherOutbound
 import AetherRules
+import AetherStore
+import Foundation
 import NIOCore
 import NIOPosix
 
@@ -25,6 +27,12 @@ public final class Engine: Sendable {
         public var network: @Sendable () -> NetworkSnapshot = { NetworkSnapshot() }
         /// 选择变化时调用，参数为当前配置的全部选择（隧道写入 `State/selections.json`）。
         public var persistSelections: (@Sendable ([String: String]) -> Void)?
+        /// 每 60 秒与停止时调用，参数为流量增量（隧道合并写入 `traffic_daily`，docs/11 §4）。
+        public var persistTraffic: (@Sendable ([TrafficDelta]) -> Void)?
+        /// 日志簿条目（编译提示等；隧道经 `LogbookWriter` 批量写入）。
+        public var logbook: (@Sendable (LogbookEntry) -> Void)?
+        /// 当前时间（统计的本地日期、日志簿时间），测试注入。
+        public var clock: @Sendable () -> Date = { Date() }
         public var timeouts = EngineTimeouts.default
         public var logger = Logger(label: "AetherEngine")
         /// 测试用：按写法构造 DNS 上游（为 nil 时使用真实上游）。
@@ -36,15 +44,19 @@ public final class Engine: Sendable {
     public let threads: EngineThreads
     public let router: Router
     public let socks: SOCKS5Inbound
+    /// 流量统计（docs/06 §12.1），绑定到数据面 EventLoop。
+    public let statistics: TrafficStatistics
     private let httpProxy: Locked<HTTPProxyInbound?>
     public let options: Options
 
     private init(
-        threads: EngineThreads, router: Router, socks: SOCKS5Inbound, httpProxy: HTTPProxyInbound?, options: Options
+        threads: EngineThreads, router: Router, socks: SOCKS5Inbound, statistics: TrafficStatistics,
+        httpProxy: HTTPProxyInbound?, options: Options
     ) {
         self.threads = threads
         self.router = router
         self.socks = socks
+        self.statistics = statistics
         self.httpProxy = Locked(httpProxy)
         self.options = options
     }
@@ -63,7 +75,7 @@ public final class Engine: Sendable {
         threads: EngineThreads = EngineThreads()
     ) async throws -> Engine {
         let loop = threads.eventLoop
-        let router = try await loop.submit { () -> Router in
+        let (router, statistics) = try await loop.submit { () -> (Router, TrafficStatistics) in
             let dns = DNSService(
                 configuration: configuration.dns,
                 environment: .init(
@@ -75,7 +87,12 @@ public final class Engine: Sendable {
                 flows: FlowManager(eventLoop: loop), dns: dns, rejects: RejectController(eventLoop: loop),
                 requests: RequestLog(eventLoop: loop), policies: policies, nat64: options.nat64,
                 network: options.network, timeouts: options.timeouts, logger: options.logger)
-            return Router(eventLoop: loop, configuration: configuration, dependencies: dependencies)
+            let router = Router(eventLoop: loop, configuration: configuration, dependencies: dependencies)
+            let statistics = TrafficStatistics(
+                eventLoop: loop, clock: options.clock, network: options.network, sink: options.persistTraffic)
+            router.onTraffic = { policy, up, down in statistics.record(policy: policy, up: up, down: down) }
+            statistics.start()
+            return (router, statistics)
         }.get()
         let socks: SOCKS5Inbound
         var http: HTTPProxyInbound?
@@ -94,10 +111,10 @@ public final class Engine: Sendable {
             try? await threads.shutdown()
             throw error
         }
-        for note in configuration.notes {
-            options.logger.notice("\(note)")
-        }
-        return Engine(threads: threads, router: router, socks: socks, httpProxy: http, options: options)
+        let engine = Engine(
+            threads: threads, router: router, socks: socks, statistics: statistics, httpProxy: http, options: options)
+        engine.report(configuration.notes)
+        return engine
     }
 
     /// 热替换运行配置（docs/06 §2.4 第 3–5 步）：新流使用新配置，已有流保持旧配置直到结束；策略组选择按同名迁移；
@@ -119,9 +136,7 @@ public final class Engine: Sendable {
         } else if !wantsHTTP, let inbound = takeHTTPProxy() {
             try? await inbound.close().get()
         }
-        for note in configuration.notes {
-            options.logger.notice("\(note)")
-        }
+        report(configuration.notes)
         persist()
     }
 
@@ -157,6 +172,14 @@ public final class Engine: Sendable {
         }.get()
     }
 
+    /// 编译提示写入日志与日志簿（docs/06 §14）。
+    private func report(_ notes: [String]) {
+        for note in notes {
+            options.logger.notice("\(note)")
+            options.logbook?(LogbookEntry(at: options.clock(), level: .info, category: .profile, message: note))
+        }
+    }
+
     /// 取出并清空当前的 HTTP 代理入站。
     private func takeHTTPProxy() -> HTTPProxyInbound? {
         httpProxy.withLock { current in
@@ -169,8 +192,8 @@ public final class Engine: Sendable {
         options.persistSelections?(policies.currentSelections)
     }
 
-    /// 停止（docs/06 §2.3 第 1、3、5 步）：停止接受新连接，关闭 UDP 关联，半关闭全部 TCP 流并在宽限期后强制关闭，
-    /// 关闭执行环境。
+    /// 停止（docs/06 §2.3 第 1–5 步）：停止接受新连接，关闭 UDP 关联，半关闭全部 TCP 流并在宽限期后强制关闭，
+    /// 写出剩余的流量增量，关闭执行环境。
     public func stop() async {
         try? await socks.close().get()
         if let inbound = takeHTTPProxy() {
@@ -178,10 +201,12 @@ public final class Engine: Sendable {
         }
         let router = self.router
         let grace = options.timeouts.stopGrace
+        let statistics = self.statistics
         _ = try? await eventLoop.flatSubmit {
             router.closeUDPAssociations()
             return router.dependencies.flows.closeAll(grace: grace)
         }.get()
+        try? await eventLoop.submit { statistics.stop() }.get()
         try? await threads.shutdown()
     }
 }

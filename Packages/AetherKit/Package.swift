@@ -51,7 +51,9 @@ var targets: [Target] = [
         ]
     ),
     .target(name: "AetherIPC", dependencies: ["AetherFoundation"]),
-    .target(name: "AetherStore", dependencies: ["AetherFoundation"]),
+    .target(
+        name: "AetherStore", dependencies: ["AetherFoundation", .product(name: "GRDB", package: "GRDB.swift")]
+    ),
     .target(
         name: "AetherEngine",
         dependencies: [
@@ -169,6 +171,7 @@ let dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
     .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.5"),
     .package(url: "https://github.com/apple/swift-certificates.git", from: "1.21.1"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
 ]
 
 let package = Package(

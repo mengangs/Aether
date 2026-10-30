@@ -2,6 +2,7 @@ import AetherFoundation
 import AetherIPC
 import AetherOutbound
 import AetherProfile
+import AetherStore
 import AetherTestSupport
 import Foundation
 import NIOConcurrencyHelpers
@@ -87,6 +88,39 @@ struct EngineTests {
         // 引擎停止时会关闭它的执行环境（与回显服务共用），所以先关回显服务。
         try await echo.close()
         await engine.stop()
+    }
+
+    @Test("Compile notes reach the logbook; traffic reaches the persistence sink when the engine stops")
+    func statisticsAndLogbook() async throws {
+        let threads = EngineThreads()
+        let echo = try await LoopbackTCPServer.start(group: threads.group) { channel in
+            channel.eventLoop.makeCompletedFuture { try channel.pipeline.syncOperations.addHandler(EchoHandler()) }
+        }
+        let logbook = NIOLockedValueBox<[LogbookEntry]>([])
+        let traffic = NIOLockedValueBox<[TrafficDelta]>([])
+        var options = Engine.Options()
+        options.socksCredentials = nil
+        options.httpProxy = nil
+        options.logbook = { entry in logbook.withLockedValue { $0.append(entry) } }
+        options.persistTraffic = { deltas in traffic.withLockedValue { $0 += deltas } }
+        let node = "VM = vmess, vmess.example.com, 443, username=0b4b5a3e-0000-4000-8000-000000000000"
+        let text = profile(rule: "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve").replacingOccurrences(
+            of: "[Proxy Group]", with: "[Proxy]\n\(node)\n\n[Proxy Group]")
+        let engine = try await Engine.start(configuration: configuration(text), options: options, threads: threads)
+        #expect(logbook.withLockedValue { $0 }.contains { $0.category == .profile && $0.message.contains("vmess") })
+
+        let (channel, collector) = try await connect(engine, to: .ip(IPAddress("127.0.0.1")!, port: UInt16(echo.port)))
+        try await channel.writeAndFlush(ByteBuffer(string: "count me"))
+        #expect(await Poll.until { String(decoding: collector.bytes, as: UTF8.self) == "count me" })
+        try await channel.close()
+        let statistics = engine.statistics
+        #expect(await Poll.until { (try? await engine.eventLoop.submit { statistics.totalUp }.get()) == 8 })
+
+        try await echo.close()
+        await engine.stop()
+        let deltas = traffic.withLockedValue { $0 }
+        #expect(deltas.map(\.policy) == ["DIRECT"])
+        #expect(deltas.first?.up == 8 && deltas.first?.down == 8)
     }
 
     @Test("Selections persist, survive a reload for same-name groups, and reset when the member disappears")

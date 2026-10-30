@@ -218,7 +218,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | apple/swift-atomics | Apache-2.0 | Engine | 原子引用、计数器 | 1.3.1（由 swift-nio 引入） |
 | apple/swift-system | Apache-2.0 | —（swift-nio 的依赖） | 系统调用封装 | 1.8.1（由 swift-nio 引入） |
 | jpsim/Yams | MIT | Profile | 解析 YAML 格式的节点订阅 | |
-| groue/GRDB.swift | MIT | Store | SQLite 访问 | |
+| groue/GRDB.swift | MIT | Store | SQLite 访问 | 7.11.1 |
 | simonbs/Runestone | MIT | App（M4） | 配置文本编辑器（语法高亮、行号） | |
 
 ### 5.2 C 库
@@ -227,6 +227,7 @@ entitlements 只声明表中这些实际需要的值：`networkextension` 只写
 | --- | --- | --- | --- |
 | heiher/hev-socks5-tunnel 2.19.3（含其子模块 lwIP、hev-task-system、yaml、hev-socks5-core） | MIT（lwIP 为 BSD） | git submodule → xcframework | TUN ↔ SOCKS5 |
 | BLAKE3 官方 C 实现（1.8.7） | CC0-1.0 / Apache-2.0 | 源码拷贝 | Shadowsocks 2022 密钥派生 |
+| SQLite | 公有领域 | 系统库：Apple 平台用 SDK 自带的 `libsqlite3`；Linux 需安装 `libsqlite3-dev`（GRDB 的 `GRDBSQLite` 系统库目标） | GRDB 的存储引擎 |
 
 ### 5.3 引入新依赖的检查
 
@@ -356,7 +357,7 @@ Actions 的版本号与 runner 标签以当时 GitHub 官方文档为准；runne
 | --- | --- | --- |
 | macOS runner | `xcode-27`（arm64，macOS 27） | GitHub 的 Xcode 27 专用镜像（public preview）；不可用时退回 `macos-26`（默认 Xcode 26.6） |
 | Xcode | `/Applications/Xcode_27.1.app`（镜像默认版本） | 在 `ios.yml` / `release.yml` 的 `XCODE_APP` 中固定 |
-| Linux 容器 | `swift:6.4-noble`（Docker Hub 官方镜像） | 本地可用同名镜像复现：`docker run --rm -v "$PWD":/src -w /src/Packages/AetherKit swift:6.4-noble swift test` |
+| Linux 容器 | `swift:6.4-noble`（Docker Hub 官方镜像）+ `libsqlite3-dev` | 作业中先 `apt-get install libsqlite3-dev`（M2-12 起，GRDB 需要）；本地复现：`docker run --rm -v "$PWD":/src -w /src/Packages/AetherKit swift:6.4-noble bash -c "apt-get update && apt-get install -y libsqlite3-dev && swift test"` |
 | Actions | `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7` | |
 
 `ios.yml` 的步骤随 M0 任务逐步补全：M0-05 只在 macOS 主机上运行架构检查与 `swift test`；M0-03 加入 hev 缓存与 `build-hev.sh`；M0-04 加入 XcodeGen 与 `xcodebuild build`。
