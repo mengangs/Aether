@@ -374,13 +374,22 @@ struct DataPlaneDeterministicTests {
 
     @Test("Flows idle in both directions are closed after the idle timeout")
     func idleTimeout() throws {
+        func trace(_ message: String) {
+            FileHandle.standardError.write(Data("TRACE idleTimeout: \(message)\n".utf8))
+        }
         let loop = EmbeddedEventLoop()
+        trace("loop.now=\(loop.now) existential.now=\((loop as any EventLoop).now)")
         let pair = try makePair(loop: loop, idle: .seconds(300))
+        trace("pair ready")
         loop.advanceTime(by: .seconds(200))
+        trace("advanced 200, now=\(loop.now)")
         try pair.inbound.writeInbound(ByteBuffer(string: "x"))
+        trace("wrote inbound")
         loop.advanceTime(by: .seconds(200))
+        trace("advanced 400, active=\(pair.inbound.isActive)")
         #expect(pair.inbound.isActive)
         loop.advanceTime(by: .seconds(101))
+        trace("advanced 501, active=\(pair.inbound.isActive)")
         #expect(!pair.inbound.isActive)
         #expect(!pair.outbound.isActive)
     }
