@@ -36,6 +36,9 @@ var targets: [Target] = [
         dependencies: [
             "AetherFoundation", "CBlake3", .product(name: "NIOCore", package: "swift-nio"),
             .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "NIOSSL", package: "swift-nio-ssl"), .product(name: "NIOTLS", package: "swift-nio"),
+            .product(name: "Crypto", package: "swift-crypto"),
         ]
     ),
     .target(name: "AetherCertificates", dependencies: ["AetherFoundation"]),
@@ -67,6 +70,7 @@ var targets: [Target] = [
         dependencies: [
             .product(name: "NIOCore", package: "swift-nio"), .product(name: "NIOPosix", package: "swift-nio"),
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "X509", package: "swift-certificates"), .product(name: "Crypto", package: "swift-crypto"),
         ]
     ),
     .testTarget(name: "CBlake3Tests", dependencies: ["CBlake3", "AetherTestSupport"]),
@@ -82,7 +86,15 @@ var targets: [Target] = [
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
         ]
     ),
-    .testTarget(name: "AetherOutboundTests", dependencies: ["AetherOutbound"]),
+    .testTarget(
+        name: "AetherOutboundTests",
+        dependencies: [
+            "AetherOutbound", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"), .product(name: "NIOSSL", package: "swift-nio-ssl"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "Crypto", package: "swift-crypto"),
+        ]
+    ),
     .testTarget(name: "AetherCertificatesTests", dependencies: ["AetherCertificates"]),
     .testTarget(name: "AetherScriptCoreTests", dependencies: ["AetherScriptCore"]),
     .testTarget(
@@ -155,6 +167,8 @@ let dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2"),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
+    .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.5"),
+    .package(url: "https://github.com/apple/swift-certificates.git", from: "1.21.1"),
 ]
 
 let package = Package(

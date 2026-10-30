@@ -205,10 +205,15 @@ public enum FlowRelay {
         }
         try inbound.pipeline.syncOperations.addHandler(inboundGlue)
         try outbound.pipeline.syncOperations.addHandler(outboundGlue)
-        // 打开 autoRead 后由 NIO 发起读取，胶水 Handler 再按对端可写性放行或暂缓。不要在这里直接调用 read()：
-        // Channel 尚未注册时调用会使 NIO 认为已有读取在途，激活后不再自动读取。
-        try setAutoRead(inbound)
-        try setAutoRead(outbound)
+        // 打开 autoRead 后由 NIO 发起读取，胶水 Handler 再按对端可写性放行或暂缓。已激活的 Channel 再经管线发出
+        // 一次 read()，使握手阶段留下的字节（回放 Handler）立即交出；尚未注册的 Channel 不能调用 read()：
+        // NIO 会认为已有读取在途，激活后不再自动读取。
+        for channel in [inbound, outbound] {
+            try setAutoRead(channel)
+            if channel.isActive {
+                channel.read()
+            }
+        }
         return inbound.closeFuture.and(outbound.closeFuture).map { _ in }
     }
 

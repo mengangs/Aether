@@ -21,15 +21,28 @@ public enum ChannelTuning {
     /// TCP 连接到服务器的超时（docs/06 §6.1）。
     public static let connectTimeout = TimeAmount.seconds(8)
 
-    /// 出站 TCP 的 `ClientBootstrap` 默认参数：允许半关闭、`TCP_NODELAY`、写缓冲水位、读缓冲上限、连接超时。
+    /// 出站 TCP 的 `ClientBootstrap` 默认参数：允许半关闭、`TCP_NODELAY`、写缓冲水位、读缓冲上限、连接超时；
+    /// `autoRead` 关闭，由握手阶段或转发 Handler 按需打开（见 `OutboundConnector`）。
     public static func configure(_ bootstrap: ClientBootstrap) -> ClientBootstrap {
         bootstrap
+            .channelOption(.autoRead, value: false)
             .channelOption(.allowRemoteHalfClosure, value: true)
             .channelOption(.tcpOption(.tcp_nodelay), value: 1)
             .channelOption(.writeBufferWaterMark, value: writeBufferWaterMark)
             .channelOption(.recvAllocator, value: receiveAllocator())
             .channelOption(.maxMessagesPerRead, value: maxMessagesPerRead)
             .connectTimeout(connectTimeout)
+    }
+
+    /// 握手期间打开读取（`autoRead` 并立即发出一次 `read()`）。
+    static func startReading(_ channel: any Channel) {
+        try? channel.syncOptions?.setOption(.autoRead, value: true)
+        channel.read()
+    }
+
+    /// 握手结束、交给调用方之前停止读取。
+    static func stopReading(_ channel: any Channel) {
+        try? channel.syncOptions?.setOption(.autoRead, value: false)
     }
 
     /// 入站监听的 `ServerBootstrap` 默认参数（子 Channel 与出站相同）。

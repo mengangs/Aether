@@ -265,6 +265,8 @@ public struct DialContext: Sendable {
 }
 ```
 
+连接器返回的 Channel `autoRead` 为关闭状态：调用方装好转发 Handler 之前不读出任何数据；握手之后服务器紧跟着发来的字节由管线中的回放 Handler 保存，调用方打开 `autoRead` 并发出一次 `read()` 时最先交出（`FlowRelay.glue` 即如此）。代理节点服务器地址按 `ip-version` 解析：`v4-only` / `v6-only` 只用一族；`prefer-v4` / `prefer-v6` 让首选族的解析先完成，再交给 Happy Eyeballs 竞速。
+
 每个连接器由三层组合：
 
 1. **Dialer**：建立到服务器的 TCP 连接（DIRECT socket，或经 `underlying` 策略）。
@@ -276,7 +278,8 @@ public struct DialContext: Sendable {
 ### 8.2 DIRECT
 
 - 见 §6 第 8 步。连接成功后的 Channel 直接返回。
-- DIRECT 的 UDP：每个 UDP 关联一个非连接的 `DatagramChannel`（完全锥形 NAT 行为）。
+- DIRECT 的 UDP：每个 UDP 关联一个非连接的 `DatagramChannel`（完全锥形 NAT 行为），IPv4 与 IPv6 各一个、按需创建；域名目标的解析结果在关联内缓存（最多 64 个域名）。
+- NAT64：路径监控报告当前网络没有 IPv4 时，IPv4 字面量目标与 A 记录结果经合成器（阻塞线程池中的 `getaddrinfo`）转成 IPv6 再连接。🔬
 
 ### 8.3 拒绝策略
 
@@ -287,7 +290,7 @@ public struct DialContext: Sendable {
 | `REJECT-DROP` | 保持连接不发送任何数据，直到对端关闭或 60 秒后关闭；同时保持的连接上限 256，超出按 `REJECT` | 丢弃 |
 | `REJECT-NO-DROP` | 同 `REJECT`，且不参与下述自动升级 | 丢弃 |
 
-自动升级保护：同一主机 1 秒内被 `REJECT` 超过 10 次，之后 30 秒内对该主机的 `REJECT` 按 `REJECT-DROP` 处理，避免客户端立即重试形成风暴。
+自动升级保护：同一主机 1 秒内被 `REJECT` 超过 10 次，之后 30 秒内对该主机的 `REJECT` 按 `REJECT-DROP` 处理，避免客户端立即重试形成风暴（`REJECT-TINYGIF` 不升级）。计数表最多记录 1,024 个主机，满时先清理过期窗口，仍满则清空。`REJECT-DROP` 保持期间读取并丢弃客户端数据，读到 EOF 即关闭。
 
 ### 8.4 协议
 
@@ -311,7 +314,7 @@ public struct DialContext: Sendable {
 
 | 传输 | 要点 |
 | --- | --- |
-| TLS | swift-nio-ssl 客户端；最低 TLS 1.2；SNI、ALPN 取配置；默认完整验证（Apple 平台上 NIOSSL 默认信任根走系统信任评估）；`skip-cert-verify` 关闭验证；`server-cert-fingerprint-sha256` 用自定义验证回调只比对叶子证书指纹 |
+| TLS | swift-nio-ssl 客户端；最低 TLS 1.2；SNI、ALPN 取配置（服务器地址为 IP 时不发 SNI）；默认完整验证（Apple 平台上 NIOSSL 默认信任根走系统信任评估）；`skip-cert-verify` 关闭验证；`server-cert-fingerprint-sha256` 用自定义验证回调只比对叶子证书指纹（不做链与主机名验证）。同一组参数共享一个 `NIOSSLContext`（最多 32 个）；关闭时等待对端 `close_notify` 最多 1 秒。握手失败以 `TLS-001`–`TLS-005` 区分原因，请求记录的错误码为 `NET-033` 并在备注中附 TLS 码 |
 | WebSocket | NIOWebSocket 客户端升级：`GET ws-path`，`Host` 取 `ws-headers` 中的 Host 或 SNI 或服务器名；载荷用二进制帧，客户端掩码；暂不支持 early data |
 | simple-obfs http | 首包伪装为带 `Upgrade: websocket` 头的 HTTP 请求并携带载荷，跳过服务端的 HTTP 响应头，之后为原始数据 |
 | simple-obfs tls | 按 simple-obfs 源码实现伪 TLS 握手（M3 后半） |
