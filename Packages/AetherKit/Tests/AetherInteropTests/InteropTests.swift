@@ -86,6 +86,18 @@ struct InteropCase: Sendable, CustomTestStringConvertible {
                     password: password($0), udpEnabled: true)
             },
         ]
+        cases.append(
+            InteropCase(name: "Trojan TLS", udp: true) {
+                TrojanConnector(
+                    name: "Trojan", server: Interop.server("XRAY_TROJAN_TLS_PORT", tls: true), password: password($0),
+                    udpEnabled: true)
+            })
+        cases.append(
+            InteropCase(name: "Trojan WS+TLS", udp: true) {
+                var server = Interop.server("XRAY_TROJAN_WS_TLS_PORT", tls: true)
+                server.webSocket = WebSocketClientOptions(path: "/trojan")
+                return TrojanConnector(name: "Trojan", server: server, password: password($0), udpEnabled: true)
+            })
         let shadowsocks: [(String, ShadowsocksAEADMethod)] = [
             ("SS_AES128_PORT", .aes128GCM), ("SS_AES256_PORT", .aes256GCM), ("SS_CHACHA_PORT", .chacha20IETFPoly1305),
         ]

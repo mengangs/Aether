@@ -119,7 +119,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | --- | --- | --- | --- | --- |
 | [x] | M3-01 | Shadowsocks AEAD（TCP / UDP）、simple-obfs http | 06 §8.4–§8.5 | 测试向量 + 互通 |
 | [x] | M3-02 | WebSocket 传输 | 06 §8.5 | 与 NIO 服务端升级器的回环互通测试；与 Xray 的互通随 M3-13 起覆盖各协议的 WS 组合 |
-| [ ] | M3-03 | Trojan（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
+| [x] | M3-03 | Trojan（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
 | [ ] | M3-04 | VMess AEAD（TCP、WS、TLS、UDP） | 06 §8.4 | 互通；确认 ChunkMasking 结论并回填 |
 | [ ] | M3-05 | VLESS（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
 | [ ] | M3-06 | Shadowsocks 2022（TCP、AES 变体 UDP）、simple-obfs tls | 06 §8.4 | 测试向量 + 互通 |

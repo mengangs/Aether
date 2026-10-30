@@ -17,6 +17,8 @@ public final class WebSocketTestServer: Sendable {
         case sendFrame(size: Int)
         /// 拒绝升级，以给定状态码回复。
         case reject(status: Int)
+        /// 升级后把帧载荷作为字节流交给 `make()` 生成的 Handler，它写出的字节以二进制帧发回（如代理协议的服务端）。
+        case forward(@Sendable () -> any ChannelHandler)
     }
 
     /// 收到的升级请求。
@@ -72,8 +74,13 @@ public final class WebSocketTestServer: Sendable {
                     },
                     upgradePipelineHandler: { channel, _ in
                         channel.eventLoop.makeCompletedFuture {
-                            try channel.pipeline.syncOperations.addHandler(
-                                FrameHandler(behavior: behavior, state: state))
+                            if case .forward(let make) = behavior {
+                                try channel.pipeline.syncOperations.addHandler(FrameStreamBridge())
+                                try channel.pipeline.syncOperations.addHandler(make())
+                            } else {
+                                try channel.pipeline.syncOperations.addHandler(
+                                    FrameHandler(behavior: behavior, state: state))
+                            }
                         }
                     })
                 return channel.eventLoop.makeCompletedFuture {
@@ -149,6 +156,31 @@ private final class FrameHandler: ChannelInboundHandler {
         default:
             break
         }
+    }
+}
+
+/// 服务端方向的帧 ↔ 字节流：数据帧的载荷向上交出，写入的字节作为二进制帧发出；`close` 帧关闭连接。
+private final class FrameStreamBridge: ChannelDuplexHandler {
+    typealias InboundIn = WebSocketFrame
+    typealias InboundOut = ByteBuffer
+    typealias OutboundIn = ByteBuffer
+    typealias OutboundOut = WebSocketFrame
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let frame = unwrapInboundIn(data)
+        switch frame.opcode {
+        case .binary, .text, .continuation:
+            context.fireChannelRead(wrapInboundOut(frame.unmaskedData))
+        case .connectionClose:
+            context.close(promise: nil)
+        default:
+            break
+        }
+    }
+
+    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        let frame = WebSocketFrame(fin: true, opcode: .binary, data: unwrapOutboundIn(data))
+        context.write(wrapOutboundOut(frame), promise: promise)
     }
 }
 

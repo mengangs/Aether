@@ -334,6 +334,8 @@ public struct DialContext: Sendable {
 
 Shadowsocks AEAD 的实现（M3-01）：连接后立即发送 salt 与只含目标地址的首块（服务端先说话的协议也能工作），之后每次写入按 ≤ 0x3FFF 字节分块加密；服务端没有握手应答，密码错误时服务端通常保持连接不回复或直接关闭（shadowsocks-rust 的防探测行为），由流的超时或关闭结束；响应无法通过认证或长度超过 0x3FFF 时以 `NET-032` 关闭。UDP 关联为一个发往服务器的 UDP socket（服务器域名按 `ip-version` 解析出一个地址），只接受来自该地址的包，无法解开的包丢弃并计数。`2022-*` 方法与 `obfs=tls` 在 M3-06 之前节点不可用并如实标注。测试向量由 `Tests/Fixtures/vectors/shadowsocks/generate.py` 用 Python `cryptography`（OpenSSL）独立生成，`EVP_BytesToKey` 与 `openssl enc -md md5 -nosalt -P` 的输出比对。
 
+Trojan 的实现（M3-03）：TLS 总是开启（未写 TLS 参数时用默认参数，完整验证），`ws=true` 时在 TLS 之上叠加 WebSocket；连接后立即发送请求头；服务端没有应答，密码错误时服务端关闭连接（或按其回落配置转发），连接本身无法判断凭据。UDP 关联为一条独立的 TLS（或 WS + TLS）连接，请求头随第一个数据报发出、地址取该数据报的目标；流不可写时新数据报直接丢弃并计数（不在用户态排队），流关闭即关联结束，帧格式错误时关闭流。SHA-224 在 `AetherOutbound/Crypto/SHA224.swift` 中实现，测试向量为 FIPS 180-4 / NIST 示例与 Python `hashlib` 在填充边界处的结果。
+
 密码学原语来自 swift-crypto。缺少的原语（SHA-224、AES 单块加密、CRC32、FNV-1a、HChaCha20 等）在 `AetherOutbound/Crypto/` 中实现，每个都必须有来自 RFC 或官方实现的测试向量。
 
 ### 8.5 传输层

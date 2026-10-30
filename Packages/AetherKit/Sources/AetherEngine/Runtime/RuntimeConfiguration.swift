@@ -182,6 +182,17 @@ public final class RuntimeConfiguration: Sendable {
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
                     supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
+        case .trojan(let password):
+            let connector = TrojanConnector(
+                name: spec.name,
+                server: ProxyServer(
+                    host: host, port: port, addressPreference: server.addressPreference,
+                    tls: server.tls ?? TLSClientOptions(), webSocket: spec.webSocket.map(webSocketOptions)),
+                password: password, udpEnabled: spec.udpRelay)
+            return .proxy(
+                ProxyNode(
+                    name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
+                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
         default:
             notes.append("Proxy \(spec.name): \(spec.type) is supported from M3")
             return .proxy(
@@ -199,6 +210,11 @@ public final class RuntimeConfiguration: Sendable {
             ProxyNode(
                 name: spec.name, type: spec.type, connector: nil, unavailableReason: reason, supportsUDP: false,
                 identity: identity, blockQUIC: spec.blockQUIC))
+    }
+
+    static func webSocketOptions(_ options: WebSocketOptions) -> WebSocketClientOptions {
+        WebSocketClientOptions(
+            path: options.path, headers: options.headers.map { .init(name: $0.name, value: $0.value) })
     }
 
     static func tlsOptions(_ options: TLSOptions) -> TLSClientOptions {

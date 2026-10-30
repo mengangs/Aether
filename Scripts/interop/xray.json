@@ -18,6 +18,19 @@
       "tag": "https", "listen": "127.0.0.1", "port": 21104, "protocol": "http",
       "settings": { "accounts": [{ "user": "aether", "pass": "aether-interop" }] },
       "streamSettings": { "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] } }
+    },
+    {
+      "tag": "trojan-tls", "listen": "127.0.0.1", "port": 21201, "protocol": "trojan",
+      "settings": { "clients": [{ "password": "aether-interop" }] },
+      "streamSettings": { "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] } }
+    },
+    {
+      "tag": "trojan-ws-tls", "listen": "127.0.0.1", "port": 21202, "protocol": "trojan",
+      "settings": { "clients": [{ "password": "aether-interop" }] },
+      "streamSettings": {
+        "network": "ws", "wsSettings": { "path": "/trojan" },
+        "security": "tls", "tlsSettings": { "certificates": [{ "certificateFile": "__CERT__", "keyFile": "__KEY__" }] }
+      }
     }
   ],
   "outbounds": [{ "protocol": "freedom" }]

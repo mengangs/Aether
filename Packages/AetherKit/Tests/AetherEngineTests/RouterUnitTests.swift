@@ -196,6 +196,31 @@ struct RuntimeConfigurationTests {
         #expect(obfsTLS.connector == nil && obfsTLS.unavailableReason?.contains("obfs tls") == true)
     }
 
+    @Test("Trojan nodes always use TLS and carry ws-path / ws-headers when ws=true")
+    func compileTrojan() {
+        let configuration = compile(
+            """
+            [Proxy]
+            T = trojan, trojan.example.com, 443, password=pw, sni=cdn.example.net, udp-relay=true
+            W = trojan, trojan.example.com, 443, password=pw, ws=true, ws-path=/tj, ws-headers="Host:front.example.org"
+            """)
+        guard case .proxy(let plain) = configuration.policies["T"], case .proxy(let ws) = configuration.policies["W"]
+        else {
+            Issue.record("nodes missing")
+            return
+        }
+        let tls = plain.connector as? TrojanConnector
+        #expect(tls?.server.tls?.serverName == .custom("cdn.example.net"))
+        #expect(tls?.server.webSocket == nil)
+        #expect(plain.supportsUDP && tls?.capabilities.contains(.udp) == true)
+        let overWS = ws.connector as? TrojanConnector
+        #expect(overWS?.server.tls != nil)
+        #expect(
+            overWS?.server.webSocket
+                == WebSocketClientOptions(path: "/tj", headers: [.init(name: "Host", value: "front.example.org")]))
+        #expect(!ws.supportsUDP)
+    }
+
     @Test("Node identity changes with credentials but not with the name")
     func identity() {
         let a = compile("[Proxy]\nA = socks5, 192.0.2.1, 1080, username=u, password=one\n[Rule]\nFINAL,A")
