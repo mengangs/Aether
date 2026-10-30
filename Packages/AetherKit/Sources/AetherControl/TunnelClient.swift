@@ -15,6 +15,9 @@ public protocol TunnelClientProtocol: Sendable {
     func selectPolicy(group: String, policy: String) async throws
     func traffic() async throws -> TrafficReport
     func requests(kind: RequestListKind, sinceID: UInt64?, limit: Int) async throws -> RequestPage
+    /// `testPolicies`（docs/06 §9.2）：返回任务 ID，结果以 `testResults(taskID:since:)` 轮询。
+    func testPolicies(names: [String]?, group: String?) async throws -> UInt64
+    func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults
 }
 
 /// 基于 `NETunnelProviderSession.sendProviderMessage` 的传输。会话由 `TunnelController` 在加载配置后更新。
@@ -97,5 +100,13 @@ public actor TunnelClient: TunnelClientProtocol {
 
     public func requests(kind: RequestListKind, sinceID: UInt64?, limit: Int) async throws -> RequestPage {
         try await client.requests(kind: kind, sinceID: sinceID, limit: limit)
+    }
+
+    public func testPolicies(names: [String]?, group: String?) async throws -> UInt64 {
+        try await client.testPolicies(names: names, group: group)
+    }
+
+    public func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults {
+        try await client.testResults(taskID: taskID, since: since)
     }
 }

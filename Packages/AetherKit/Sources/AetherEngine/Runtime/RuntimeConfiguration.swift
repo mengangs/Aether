@@ -18,6 +18,9 @@ public struct ProxyNode: Sendable {
     public var identity: String
     /// 节点的 `block-quic`（`auto` / `on` / `off`）；为 nil 时用全局设置。
     public var blockQUIC: String?
+    /// 节点的 `test-url` / `test-timeout`（秒）；为 nil 时用组或全局设置。
+    public var testURL: String? = nil
+    public var testTimeout: Double? = nil
 }
 
 /// 策略组的运行时形态。
@@ -27,6 +30,14 @@ public struct PolicyGroup: Sendable {
     /// 解析后的成员（显式成员、`include-all-proxies`、`include-other-group`），按配置顺序去重。
     public var members: [String]
     public var hidden: Bool
+    /// 自动组的测速参数（docs/04 §6.2）：`url` 为 nil 时用 `proxy-test-url`，`timeout` 为 nil 时用 `test-timeout`。
+    public var testURL: String? = nil
+    public var interval: Double = 600
+    public var timeout: Double? = nil
+    /// 毫秒。
+    public var tolerance: Int = 50
+    public var evaluateBeforeUse = false
+    public var persistent = false
 }
 
 /// 运行时策略。
@@ -95,7 +106,13 @@ public final class RuntimeConfiguration: Sendable {
         ]
         var proxyOrder: [String] = []
         for spec in resolved.proxies {
-            policies[spec.name] = makePolicy(spec, notes: &notes)
+            var policy = makePolicy(spec, notes: &notes)
+            if case .proxy(var node) = policy {
+                node.testURL = spec.testURL
+                node.testTimeout = spec.testTimeout
+                policy = .proxy(node)
+            }
+            policies[spec.name] = policy
             proxyOrder.append(spec.name)
         }
         var groupOrder: [String] = []
@@ -114,11 +131,14 @@ public final class RuntimeConfiguration: Sendable {
                 notes.append(
                     "Group \(group.name): policy-path subscriptions are loaded from M3; members from it are absent")
             }
-            if group.type.isAutomatic {
-                notes.append("Group \(group.name): \(group.type.rawValue) selects its first member until M3-07")
-            }
-            policies[group.name] = .group(
-                PolicyGroup(name: group.name, type: group.type, members: members, hidden: group.hidden))
+            var runtimeGroup = PolicyGroup(name: group.name, type: group.type, members: members, hidden: group.hidden)
+            runtimeGroup.testURL = group.url
+            runtimeGroup.interval = group.interval
+            runtimeGroup.timeout = group.timeout
+            runtimeGroup.tolerance = group.tolerance
+            runtimeGroup.evaluateBeforeUse = group.evaluateBeforeUse
+            runtimeGroup.persistent = group.persistent
+            policies[group.name] = .group(runtimeGroup)
             groupOrder.append(group.name)
         }
         let program = RuleProgram.compile(resolved.rules, resources: resources)

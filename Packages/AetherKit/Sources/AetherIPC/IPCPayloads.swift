@@ -190,3 +190,39 @@ public struct RequestPage: Codable, Sendable, Equatable {
         self.next = next
     }
 }
+
+/// `testPolicies`：手动测速任务。
+public struct TestTask: Codable, Sendable, Equatable {
+    public var id: UInt64
+
+    public init(id: UInt64) {
+        self.id = id
+    }
+}
+
+/// `getTestResults`：每个节点的延迟或错误与时间。
+public struct TestResults: Codable, Sendable, Equatable {
+    public struct Entry: Codable, Sendable, Equatable {
+        public var name: String
+        public var latencyMs: Int?
+        /// 失败时的错误码。
+        public var errorCode: String?
+        public var at: Date
+
+        public init(name: String, latencyMs: Int?, errorCode: String?, at: Date) {
+            self.name = name
+            self.latencyMs = latencyMs
+            self.errorCode = errorCode
+            self.at = at
+        }
+    }
+
+    public var entries: [Entry]
+    /// 任务中尚未完成的节点数（不按任务查询时为 0）。
+    public var pending: Int
+
+    public init(entries: [Entry], pending: Int) {
+        self.entries = entries
+        self.pending = pending
+    }
+}

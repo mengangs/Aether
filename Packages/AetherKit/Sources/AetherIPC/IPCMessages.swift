@@ -26,6 +26,10 @@ public enum IPCCommand: Sendable, Equatable {
     case getTraffic
     /// `limit` 超过 `IPCProtocol.maxPageSize` 时按上限处理。
     case getRequests(kind: RequestListKind, sinceID: UInt64?, limit: Int)
+    /// 手动测速（docs/06 §9.2）：`group` 为组的全部成员，`names` 为指定节点，都为空时测全部节点。返回任务 ID。
+    case testPolicies(names: [String]?, group: String?)
+    /// 测速结果：`taskID` 给出时为该任务的结果，否则为全部节点最近的结果（`since` 之后的）。
+    case getTestResults(taskID: UInt64?, since: Date?)
 
     /// 命令名，即编码中的 `type`。
     public var name: String {
@@ -39,6 +43,8 @@ public enum IPCCommand: Sendable, Equatable {
         case .selectPolicy: return "selectPolicy"
         case .getTraffic: return "getTraffic"
         case .getRequests: return "getRequests"
+        case .testPolicies: return "testPolicies"
+        case .getTestResults: return "getTestResults"
         }
     }
 }
@@ -72,6 +78,16 @@ extension IPCCommand: Codable {
         var limit: Int
     }
 
+    private struct TestParams: Codable {
+        var names: [String]?
+        var group: String?
+    }
+
+    private struct TestResultsParams: Codable {
+        var taskID: UInt64?
+        var since: Date?
+    }
+
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
@@ -94,6 +110,12 @@ extension IPCCommand: Codable {
         case "getRequests":
             let value = try params(RequestsParams.self)
             self = .getRequests(kind: value.kind, sinceID: value.sinceID, limit: value.limit)
+        case "testPolicies":
+            let value = try container.decodeIfPresent(TestParams.self, forKey: .params)
+            self = .testPolicies(names: value?.names, group: value?.group)
+        case "getTestResults":
+            let value = try container.decodeIfPresent(TestResultsParams.self, forKey: .params)
+            self = .getTestResults(taskID: value?.taskID, since: value?.since)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown command \(type)")
@@ -116,6 +138,10 @@ extension IPCCommand: Codable {
             try container.encode(SelectParams(group: group, policy: policy), forKey: .params)
         case .getRequests(let kind, let sinceID, let limit):
             try container.encode(RequestsParams(kind: kind, sinceID: sinceID, limit: limit), forKey: .params)
+        case .testPolicies(let names, let group):
+            try container.encode(TestParams(names: names, group: group), forKey: .params)
+        case .getTestResults(let taskID, let since):
+            try container.encode(TestResultsParams(taskID: taskID, since: since), forKey: .params)
         }
     }
 }
@@ -195,6 +221,8 @@ public enum IPCPayload: Sendable, Equatable {
     case policies(PolicyList)
     case traffic(TrafficReport)
     case requests(RequestPage)
+    case testTask(TestTask)
+    case testResults(TestResults)
 }
 
 extension IPCPayload: Codable {
@@ -217,6 +245,8 @@ extension IPCPayload: Codable {
         case "policies": self = .policies(try value(PolicyList.self))
         case "traffic": self = .traffic(try value(TrafficReport.self))
         case "requests": self = .requests(try value(RequestPage.self))
+        case "testTask": self = .testTask(try value(TestTask.self))
+        case "testResults": self = .testResults(try value(TestResults.self))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown payload \(type)")
@@ -246,6 +276,12 @@ extension IPCPayload: Codable {
         case .requests(let page):
             try container.encode("requests", forKey: .type)
             try container.encode(page, forKey: .value)
+        case .testTask(let task):
+            try container.encode("testTask", forKey: .type)
+            try container.encode(task, forKey: .value)
+        case .testResults(let results):
+            try container.encode("testResults", forKey: .type)
+            try container.encode(results, forKey: .value)
         }
     }
 }

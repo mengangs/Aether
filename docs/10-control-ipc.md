@@ -83,6 +83,8 @@ public struct IPCError: Error, Codable, Sendable {
 
 实现（M2-10）：M2 的命令由 `TunnelRuntime.handle` 处理，负载类型为 `status`、`memoryInfo`、`reload`、`policies`、`traffic`、`requests`（`empty` 表示无返回值），类型定义在 `AetherIPC`，`IPCClient` 提供对应的类型安全方法。`reloadProfile` 的 `expectedRevision` 与当前运行包不一致时返回 `IPC-012`；配置有 error 级诊断时返回 `ReloadResult`（`errorCount > 0`，诊断最多 50 条）而不是错误。`getRequests` 的 `limit` 截到 1…200。隧道不处于 `running` / `reasserting` 时，除 `getStatus`、`getMemoryInfo` 外的命令返回 `IPC-012`；没有运行时（扩展未启动隧道）时返回 `IPC-001`。`getMemoryInfo` 的 `components` 在 M2 给出 `tcpFlows`、`udpAssociations`、`activeRequests`、`finishedRequests`（条目数）。
 
+实现（M3-07）：`testPolicies` 返回 `testTask`（任务 ID）；名称不存在或不是节点时 `IPC-011`。`getTestResults` 带 `taskID` 时返回该任务已完成的节点结果与 `pending`（未完成数），任务不存在时 `IPC-011`；不带时返回 `DIRECT` 与全部节点在 `since` 之后的最近结果。`listPolicies` 的 `selected` 为组当前解析到的成员（自动组按测速结果），节点的 `latencyMs` 为最近一次成功的延迟；状态快照 `primaryGroups` 的 `latencyMs` 为当前成员终点的最近延迟。
+
 ### 2.3 IPC 错误码
 
 | 码 | 含义 |

@@ -33,6 +33,12 @@ public final class Engine: Sendable {
         public var logbook: (@Sendable (LogbookEntry) -> Void)?
         /// 当前时间（统计的本地日期、日志簿时间），测试注入。
         public var clock: @Sendable () -> Date = { Date() }
+        /// 测速的调度参数（docs/06 §9.2）。
+        public var testerSettings = PolicyTester.Settings()
+        /// 是否启动周期测速（测试中关闭，改为手动调用 `tester.tick()`）。
+        public var periodicTests = true
+        /// 测速计时用的单调时钟（测试注入）。
+        public var monotonicNow: @Sendable () -> NIODeadline = { .now() }
         public var timeouts = EngineTimeouts.default
         public var logger = Logger(label: "AetherEngine")
         /// 测试用：按写法构造 DNS 上游（为 nil 时使用真实上游）。
@@ -81,7 +87,7 @@ public final class Engine: Sendable {
                 environment: .init(
                     eventLoop: loop, blockingPool: threads.blockingPool, systemServers: options.systemDNSServers,
                     logger: options.logger, makeUpstream: options.dnsUpstreams))
-            let policies = PolicyRegistry(selections: selections)
+            let policies = PolicyRegistry(selections: selections, clock: options.clock)
             policies.migrate(to: configuration)
             let dependencies = Router.Dependencies(
                 flows: FlowManager(eventLoop: loop), dns: dns, rejects: RejectController(eventLoop: loop),
@@ -91,6 +97,13 @@ public final class Engine: Sendable {
             let statistics = TrafficStatistics(
                 eventLoop: loop, clock: options.clock, network: options.network, sink: options.persistTraffic)
             router.onTraffic = { policy, up, down in statistics.record(policy: policy, up: up, down: down) }
+            let network = options.network
+            router.tester = PolicyTester(
+                router: router, settings: options.testerSettings, clock: options.clock, now: options.monotonicNow,
+                networkRevision: { UInt64(clamping: network().revision) })
+            if options.periodicTests {
+                router.tester?.start()
+            }
             statistics.start()
             return (router, statistics)
         }.get()
@@ -203,6 +216,7 @@ public final class Engine: Sendable {
         let grace = options.timeouts.stopGrace
         let statistics = self.statistics
         _ = try? await eventLoop.flatSubmit {
+            router.tester?.stop()
             router.closeUDPAssociations()
             return router.dependencies.flows.closeAll(grace: grace)
         }.get()

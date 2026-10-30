@@ -69,6 +69,20 @@ public struct MockTunnelClient: TunnelClientProtocol {
     public func selectPolicy(group: String, policy: String) async throws { try value {} }
     public func traffic() async throws -> TrafficReport { try value { fixtures.traffic } }
 
+    public func testPolicies(names: [String]?, group: String?) async throws -> UInt64 { try value { 1 } }
+
+    /// 返回示例节点的固定测速结果（失败的节点带错误码）。
+    public func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults {
+        try value {
+            let entries = fixtures.policies.nodes.map { node in
+                TestResults.Entry(
+                    name: node.name, latencyMs: node.latencyMs, errorCode: node.latencyMs == nil ? "NET-002" : nil,
+                    at: Fixtures.base)
+            }
+            return TestResults(entries: entries, pending: 0)
+        }
+    }
+
     public func requests(kind: RequestListKind, sinceID: UInt64?, limit: Int) async throws -> RequestPage {
         try value {
             let pool = fixtures.requests.filter { kind == .active ? $0.state == .active : $0.state != .active }
@@ -79,7 +93,7 @@ public struct MockTunnelClient: TunnelClientProtocol {
 }
 
 extension MockTunnelClient.Fixtures {
-    static let base = Date(timeIntervalSince1970: 1_793_347_200)
+    public static let base = Date(timeIntervalSince1970: 1_793_347_200)
 
     /// 示例数据：一个运行中的配置、两个策略组、四个节点、几条请求与 2 分钟的速率样本。
     public static var sample: Self {
@@ -97,11 +111,15 @@ extension MockTunnelClient.Fixtures {
                 note: nil),
             PolicyList.Group(
                 name: "Auto", type: "url-test", members: ["HK-01", "JP-01"], selected: "HK-01", hidden: false,
-                note: "url-test resolves to its first member until M3-07"),
+                note: nil),
         ]
         let nodes: [PolicyList.Node] = [
-            PolicyList.Node(name: "HK-01", type: "https", supportsUDP: false, available: true, unavailableReason: nil),
-            PolicyList.Node(name: "JP-01", type: "socks5", supportsUDP: true, available: true, unavailableReason: nil),
+            PolicyList.Node(
+                name: "HK-01", type: "https", supportsUDP: false, available: true, unavailableReason: nil, latencyMs: 86
+            ),
+            PolicyList.Node(
+                name: "JP-01", type: "socks5", supportsUDP: true, available: true, unavailableReason: nil,
+                latencyMs: 312),
             PolicyList.Node(
                 name: "SG-01", type: "snell", supportsUDP: false, available: false,
                 unavailableReason: "snell is not supported"),

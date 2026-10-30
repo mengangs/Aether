@@ -84,6 +84,8 @@ public final class Router: InboundAcceptor, HTTPProxyDelegate, @unchecked Sendab
     public var globalPolicy: String?
     /// 流量回调：最终策略名、上行与下行字节数（统计聚合，docs/06 §12.1）。
     public var onTraffic: ((String, Int, Int) -> Void)?
+    /// 测速（由引擎在创建后设置）：`evaluate-before-use` 的组先测速再解析；节点连接失败计入被动降级。
+    public var tester: PolicyTester?
 
     public init(eventLoop: any EventLoop, configuration: RuntimeConfiguration, dependencies: Dependencies) {
         self.eventLoop = eventLoop
@@ -122,11 +124,23 @@ public final class Router: InboundAcceptor, HTTPProxyDelegate, @unchecked Sendab
                 RouteDecision
             >
         {
+            let host = context.host?.value
             do {
-                let resolution = try policies.resolve(policy, in: configuration)
+                let resolution = try policies.resolve(policy, in: configuration, host: host)
                 return eventLoop.makeSucceededFuture(
                     RouteDecision(
                         context: context, rule: rule, resolution: resolution, dnsMilliseconds: dnsMilliseconds))
+            } catch let pending as PolicyAwaitingEvaluation {
+                // evaluate-before-use：先测速（测速自身受组的 timeout 限制），之后必有结果，再解析一次。
+                guard let tester else {
+                    return eventLoop.makeFailedFuture(
+                        NetworkError(.netPolicyUnavailable, "\(pending.group) has no test results"))
+                }
+                return tester.testGroup(pending.group).flatMapThrowing {
+                    let resolution = try policies.resolve(policy, in: configuration, host: host)
+                    return RouteDecision(
+                        context: context, rule: rule, resolution: resolution, dnsMilliseconds: dnsMilliseconds)
+                }
             } catch {
                 return eventLoop.makeFailedFuture(error)
             }
@@ -375,7 +389,18 @@ public final class Router: InboundAcceptor, HTTPProxyDelegate, @unchecked Sendab
         let dialContext = DialContext(
             flowID: id, eventLoop: eventLoop, deadline: started + dependencies.timeouts.handshake,
             serverResolver: serverResolver, logger: dependencies.logger)
+        let nodeIdentity: String? =
+            if case .proxy(let node) = decision.resolution.terminal { node.identity } else { nil }
         connector.connect(to: target, context: dialContext).hop(to: eventLoop).assumeIsolated().whenComplete { result in
+            if let nodeIdentity {
+                if case .success = result {
+                    self.dependencies.policies.recordSuccess(nodeIdentity)
+                } else if let tester = self.tester {
+                    tester.nodeFailed(identity: nodeIdentity)
+                } else {
+                    self.dependencies.policies.recordFailure(nodeIdentity)
+                }
+            }
             switch result {
             case .failure(let error):
                 let aether = NetworkErrorMapping.map(error)

@@ -297,6 +297,17 @@ public actor TunnelRuntime {
                         buckets: statistics.sessionBuckets,
                         samples: statistics.recentSamples.map { .init(at: $0.at, up: $0.up, down: $0.down) })
                 }.get())
+        case .testPolicies(let names, let group):
+            let router = try requireEngine().router
+            let id = try await router.eventLoop.submit { () throws -> UInt64 in
+                guard let tester = router.tester else {
+                    throw IPCError(code: .ipcInvalidState, message: "Latency tests are unavailable")
+                }
+                return try tester.startTask(names: names, group: group)
+            }.get()
+            return .testTask(TestTask(id: id))
+        case .getTestResults(let taskID, let since):
+            return .testResults(try await testResults(taskID: taskID, since: since))
         case .getRequests(let kind, let sinceID, let limit):
             let requests = try requireEngine().requests
             let pageSize = min(max(limit, 1), IPCProtocol.maxPageSize)
@@ -323,20 +334,49 @@ public actor TunnelRuntime {
             let registry = router.dependencies.policies
             let groups = configuration.groupOrder.compactMap { name -> PolicyList.Group? in
                 guard case .group(let group) = configuration.policies[name] else { return nil }
-                let selected = (try? registry.resolve(name, in: configuration))?.chain.dropFirst().first
-                let note: String? =
-                    group.type.isAutomatic ? "\(group.type.rawValue) resolves to its first member until M3-07" : nil
+                // App 正在展示：自动组视为活跃（docs/06 §9.2）。
+                if group.type.isAutomatic {
+                    registry.markUsed(name)
+                }
                 return PolicyList.Group(
-                    name: name, type: group.type.rawValue, members: group.members, selected: selected,
-                    hidden: group.hidden, note: note)
+                    name: name, type: group.type.rawValue, members: group.members,
+                    selected: registry.currentMember(of: group, in: configuration), hidden: group.hidden, note: nil)
             }
             let nodes = configuration.proxyOrder.compactMap { name -> PolicyList.Node? in
                 guard case .proxy(let node) = configuration.policies[name] else { return nil }
                 return PolicyList.Node(
                     name: name, type: node.type, supportsUDP: node.supportsUDP, available: node.connector != nil,
-                    unavailableReason: node.unavailableReason)
+                    unavailableReason: node.unavailableReason, latencyMs: registry.latest(for: node.identity)?.latencyMs
+                )
             }
             return PolicyList(groups: groups, nodes: nodes)
+        }.get()
+    }
+
+    /// `getTestResults`：任务的结果，或全部节点（含 DIRECT）`since` 之后的最近结果。
+    private func testResults(taskID: UInt64?, since: Date?) async throws -> TestResults {
+        let router = try requireEngine().router
+        return try await router.eventLoop.submit { () throws -> TestResults in
+            func entry(_ name: String, _ result: LatencyResult) -> TestResults.Entry {
+                TestResults.Entry(name: name, latencyMs: result.latencyMs, errorCode: result.errorCode, at: result.at)
+            }
+            if let taskID {
+                guard let task = router.tester?.task(taskID) else {
+                    throw IPCError(code: .ipcInvalidArgument, message: "No test task \(taskID)")
+                }
+                let entries = task.names.compactMap { name in task.results[name].map { entry(name, $0) } }
+                return TestResults(entries: entries, pending: task.names.count - entries.count)
+            }
+            let configuration = router.configuration
+            let registry = router.dependencies.policies
+            var entries: [TestResults.Entry] = []
+            for name in ["DIRECT"] + configuration.proxyOrder {
+                guard let policy = configuration.policies[name], let identity = PolicyRegistry.identity(of: policy),
+                    let result = registry.latest(for: identity), result.at >= (since ?? .distantPast)
+                else { continue }
+                entries.append(entry(name, result))
+            }
+            return TestResults(entries: entries, pending: 0)
         }.get()
     }
 
@@ -395,6 +435,7 @@ public actor TunnelRuntime {
             try? await engine.eventLoop.submit {
                 router.dependencies.dns.flushCache()
                 router.clearDecisionCache()
+                router.tester?.networkChanged()
             }.get()
         }
         writeStatus(notify: true)
@@ -453,9 +494,15 @@ public actor TunnelRuntime {
             (try? await engine.eventLoop.submit {
                 let configuration = router.configuration
                 return configuration.primarySelectGroups.map { group in
-                    PolicyGroupSummary(
-                        name: group.name,
-                        current: router.dependencies.policies.selection(for: group) ?? group.members.first)
+                    let registry = router.dependencies.policies
+                    let current = registry.selection(for: group) ?? group.members.first
+                    let latency = current.flatMap { member -> Int? in
+                        guard let identity = registry.terminalIdentity(of: member, in: configuration) else {
+                            return nil
+                        }
+                        return registry.latest(for: identity)?.latencyMs
+                    }
+                    return PolicyGroupSummary(name: group.name, current: current, latencyMs: latency)
                 }
             }.get()) ?? []
     }

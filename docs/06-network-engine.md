@@ -383,6 +383,15 @@ v1 不做协议层多路复用（如 mux、h2 连接池）。DoH / DoT 上游与
 - 手动测速（单节点、整组、全部）通过 IPC 发起，结果逐步写入状态，App 轮询展示。
 - DIRECT 连通性测试使用 `internet-test-url`，结果用于诊断页与首页状态。
 
+### 9.3 实现（M3-07）
+
+- `PolicyRegistry` 保存按节点身份的最近测速结果（每个节点保留最近 10 次）、被动失败计数与降级期、url-test 组的当前成员、自动组的最近使用时间与"待测"组；节点身份与失败记录各最多 1,024 个（溢出丢弃最旧的结果），待测组最多 64 个；重载时按身份保留结果、丢弃已不存在的节点。`DIRECT` 作为自动组成员时以身份 `DIRECT` 测速，拒绝类成员不可用。
+- 没有任何测速结果的自动组解析到第一个成员并登记待测，周期检查（每 5 秒）立即测；`evaluate-before-use = true` 时 `Router` 在判定阶段先测该组（每个节点受 `timeout` 限制）再解析。
+- `load-balance` 的 `persistent` 以 FNV-1a(主机名 ‖ 0 ‖ 成员名) 为 HRW 权重；非 persistent 时随机数由注入的随机源给出。
+- 测速请求由 `AetherHTTP.HTTPProbe` 完成：经节点的连接器连到测速 URL 的主机（HTTPS 时再做一层完整验证的 TLS），只读响应状态行（上限 8 KiB），2xx / 3xx 为成功，其它状态码 `NET-030`，超时 `NET-002`；计时用注入的单调时钟。
+- `PolicyTester` 绑定数据面 EventLoop：并发 8、等待队列 256（溢出直接记失败 `NET-040`）、同一节点的测速合并；测速 URL 与超时依次取节点的 `test-url` / `test-timeout`、组的 `url` / `timeout`、`[General]` 的 `proxy-test-url` / `test-timeout`。被动失败由 `Router` 在拨号结果处上报（成功清零），节点进入降级期时重测含它的活跃组。网络修订号变化后去抖 2 秒检查一次；结果的修订号与当前不同的活跃组视为到期重测。
+- 手动测速任务最多保留 16 个（溢出丢弃最旧的）；`listPolicies` 视为 App 正在展示，把自动组标为活跃。
+
 ## 10. UDP
 
 - UDP 来源：hev 的 SOCKS5 `UDP ASSOCIATE`（以及 M7 的局域网 SOCKS5）。一个关联内的数据包可以发往不同目标。

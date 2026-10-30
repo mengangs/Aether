@@ -148,7 +148,18 @@ struct TunnelRuntimeTests {
         }
         #expect(policies.groups.map(\.name) == ["Main", "Auto"])
         #expect(policies.groups.first?.selected == "B" && policies.groups.first?.members == ["A", "B", "DIRECT"])
-        #expect(policies.groups.last?.note?.contains("M3-07") == true)
+        // 自动组在没有测速结果时解析到第一个成员（M3-07 起不再附说明）；节点还没有测速结果。
+        #expect(
+            policies.groups.last?.note == nil && policies.groups.last?.selected == policies.groups.last?.members.first)
+        #expect(policies.nodes.allSatisfy { $0.latencyMs == nil })
+        guard case .testResults(let none) = try await runtime.handle(.getTestResults(taskID: nil, since: nil)) else {
+            Issue.record("expected test results")
+            return
+        }
+        #expect(none.entries.isEmpty)
+        await #expect(throws: IPCError.self) {
+            _ = try await runtime.handle(.testPolicies(names: ["Nope"], group: nil))
+        }
         #expect(policies.nodes.map(\.name) == ["A", "B"] && policies.nodes.allSatisfy(\.available))
 
         #expect(try await runtime.handle(.setOutboundMode(.rule)) == .empty)

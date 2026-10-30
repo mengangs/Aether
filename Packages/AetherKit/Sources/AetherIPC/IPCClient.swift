@@ -123,6 +123,22 @@ public actor IPCClient {
         return page
     }
 
+    /// `testPolicies`：返回任务 ID。
+    public func testPolicies(names: [String]? = nil, group: String? = nil) async throws -> UInt64 {
+        guard case .testTask(let task) = try await send(.testPolicies(names: names, group: group)) else {
+            throw unexpected("testPolicies")
+        }
+        return task.id
+    }
+
+    /// `getTestResults`。
+    public func testResults(taskID: UInt64? = nil, since: Date? = nil) async throws -> TestResults {
+        guard case .testResults(let results) = try await send(.getTestResults(taskID: taskID, since: since)) else {
+            throw unexpected("getTestResults")
+        }
+        return results
+    }
+
     private func unexpected(_ command: String) -> IPCError {
         IPCError(code: .ipcUndecodable, message: "\(command) returned an unexpected payload")
     }
