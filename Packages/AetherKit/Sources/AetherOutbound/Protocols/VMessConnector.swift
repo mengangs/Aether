@@ -119,7 +119,7 @@ public struct VMessConnector: OutboundConnector {
             UInt8(truncatingIfNeeded: crc),
         ]
         let key = VMessKDF.derive16(commandKey, path: [Array("AES Auth ID Encryption".utf8)])
-        guard let cipher = AES128Block(key: key), let encrypted = cipher.encrypt(plain) else {
+        guard let cipher = AESBlock(key: key), let encrypted = cipher.encrypt(plain) else {
             throw NetworkError(.netProtocolError, "VMess AuthID encryption failed")
         }
         return encrypted

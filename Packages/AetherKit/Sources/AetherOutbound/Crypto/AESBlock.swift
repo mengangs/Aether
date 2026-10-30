@@ -1,25 +1,32 @@
-/// AES-128 单块加密（FIPS-197）：swift-crypto 不提供无模式的块加密，VMess 的 AuthID 需要（docs/06 §8.4）。
-/// 只做加密方向、只处理 16 字节一块；查表实现不是常量时间，只用于 AuthID 这种不涉及长期机密比较的场合。
-struct AES128Block {
+/// AES 单块加解密（FIPS-197，128 / 256 位密钥）：swift-crypto 不提供无模式的块加密，VMess 的 AuthID 与
+/// Shadowsocks 2022 的 UDP 独立头需要（docs/06 §8.4）。一次只处理 16 字节；查表实现不是常量时间，
+/// 只用于这类不涉及长期机密比较的场合。
+struct AESBlock {
     private let roundKeys: [UInt32]
+    private let rounds: Int
 
-    /// `key` 不是 16 字节时返回 nil。
+    /// `key` 不是 16 或 32 字节时返回 nil。
     init?(key: [UInt8]) {
-        guard key.count == 16 else { return nil }
-        var words = [UInt32](repeating: 0, count: 44)
-        for index in 0..<4 {
+        guard key.count == 16 || key.count == 32 else { return nil }
+        let nk = key.count / 4
+        rounds = nk + 6
+        let total = 4 * (rounds + 1)
+        var words = [UInt32](repeating: 0, count: total)
+        for index in 0..<nk {
             words[index] =
                 UInt32(key[4 * index]) << 24 | UInt32(key[4 * index + 1]) << 16 | UInt32(key[4 * index + 2]) << 8
                 | UInt32(key[4 * index + 3])
         }
-        var rcon: UInt32 = 0x0100_0000
-        for index in 4..<44 {
+        var rcon: UInt8 = 0x01
+        for index in nk..<total {
             var temp = words[index - 1]
-            if index % 4 == 0 {
-                temp = Self.subWord((temp << 8) | (temp >> 24)) ^ rcon
-                rcon = UInt32(Self.xtime(UInt8(rcon >> 24))) << 24
+            if index % nk == 0 {
+                temp = Self.subWord((temp << 8) | (temp >> 24)) ^ (UInt32(rcon) << 24)
+                rcon = Self.xtime(rcon)
+            } else if nk > 6, index % nk == 4 {
+                temp = Self.subWord(temp)
             }
-            words[index] = words[index - 4] ^ temp
+            words[index] = words[index - nk] ^ temp
         }
         roundKeys = words
     }
@@ -29,15 +36,32 @@ struct AES128Block {
         guard block.count == 16 else { return nil }
         var state = block
         addRoundKey(&state, round: 0)
-        for round in 1..<10 {
-            subBytes(&state)
+        for round in 1..<rounds {
+            substitute(&state, Self.sbox)
             shiftRows(&state)
             mixColumns(&state)
             addRoundKey(&state, round: round)
         }
-        subBytes(&state)
+        substitute(&state, Self.sbox)
         shiftRows(&state)
-        addRoundKey(&state, round: 10)
+        addRoundKey(&state, round: rounds)
+        return state
+    }
+
+    /// 解密一块；`block` 不是 16 字节时返回 nil。
+    func decrypt(_ block: [UInt8]) -> [UInt8]? {
+        guard block.count == 16 else { return nil }
+        var state = block
+        addRoundKey(&state, round: rounds)
+        for round in stride(from: rounds - 1, through: 1, by: -1) {
+            inverseShiftRows(&state)
+            substitute(&state, Self.inverseSbox)
+            addRoundKey(&state, round: round)
+            inverseMixColumns(&state)
+        }
+        inverseShiftRows(&state)
+        substitute(&state, Self.inverseSbox)
+        addRoundKey(&state, round: 0)
         return state
     }
 
@@ -51,9 +75,9 @@ struct AES128Block {
         }
     }
 
-    private func subBytes(_ state: inout [UInt8]) {
+    private func substitute(_ state: inout [UInt8], _ table: [UInt8]) {
         for index in 0..<16 {
-            state[index] = Self.sbox[Int(state[index])]
+            state[index] = table[Int(state[index])]
         }
     }
 
@@ -63,6 +87,15 @@ struct AES128Block {
         for row in 1..<4 {
             for column in 0..<4 {
                 state[4 * column + row] = copy[4 * ((column + row) % 4) + row]
+            }
+        }
+    }
+
+    private func inverseShiftRows(_ state: inout [UInt8]) {
+        let copy = state
+        for row in 1..<4 {
+            for column in 0..<4 {
+                state[4 * ((column + row) % 4) + row] = copy[4 * column + row]
             }
         }
     }
@@ -79,6 +112,30 @@ struct AES128Block {
             state[4 * column + 2] = a2 ^ all ^ Self.xtime(a2 ^ a3)
             state[4 * column + 3] = a3 ^ all ^ Self.xtime(a3 ^ a0)
         }
+    }
+
+    private func inverseMixColumns(_ state: inout [UInt8]) {
+        for column in 0..<4 {
+            let a = (0..<4).map { state[4 * column + $0] }
+            for row in 0..<4 {
+                state[4 * column + row] =
+                    Self.multiply(a[row], 0x0e) ^ Self.multiply(a[(row + 1) % 4], 0x0b)
+                    ^ Self.multiply(a[(row + 2) % 4], 0x0d) ^ Self.multiply(a[(row + 3) % 4], 0x09)
+            }
+        }
+    }
+
+    /// GF(2^8) 乘法。
+    private static func multiply(_ a: UInt8, _ b: UInt8) -> UInt8 {
+        var result: UInt8 = 0
+        var a = a
+        var b = b
+        while b != 0 {
+            if b & 1 != 0 { result ^= a }
+            a = xtime(a)
+            b >>= 1
+        }
+        return result
     }
 
     private static func xtime(_ value: UInt8) -> UInt8 {
@@ -108,4 +165,12 @@ struct AES128Block {
         0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
         0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16,
     ]
+
+    private static let inverseSbox: [UInt8] = {
+        var table = [UInt8](repeating: 0, count: 256)
+        for (index, value) in sbox.enumerated() {
+            table[Int(value)] = UInt8(index)
+        }
+        return table
+    }()
 }

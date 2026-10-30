@@ -35,9 +35,14 @@ pw="$AETHER_INTEROP_PASSWORD"
 start ss-aes128 "$ss" -s "127.0.0.1:$SS_AES128_PORT" -m aes-128-gcm -k "$pw" -U
 start ss-aes256 "$ss" -s "127.0.0.1:$SS_AES256_PORT" -m aes-256-gcm -k "$pw" -U
 start ss-chacha "$ss" -s "127.0.0.1:$SS_CHACHA_PORT" -m chacha20-ietf-poly1305 -k "$pw" -U
+start ss2022-aes128 "$ss" -s "127.0.0.1:$SS2022_AES128_PORT" -m 2022-blake3-aes-128-gcm -k "$AETHER_INTEROP_PSK16" -U
+start ss2022-aes256 "$ss" -s "127.0.0.1:$SS2022_AES256_PORT" -m 2022-blake3-aes-256-gcm -k "$AETHER_INTEROP_PSK32" -U
+start ss2022-chacha "$ss" -s "127.0.0.1:$SS2022_CHACHA_PORT" -m 2022-blake3-chacha20-poly1305 -k "$AETHER_INTEROP_PSK32"
 if command -v obfs-server >/dev/null; then
   start ss-obfs-http "$ss" -s "127.0.0.1:$SS_OBFS_HTTP_PORT" -m aes-256-gcm -k "$pw" \
     --plugin obfs-server --plugin-opts "obfs=http"
+  start ss-obfs-tls "$ss" -s "127.0.0.1:$SS_OBFS_TLS_PORT" -m aes-256-gcm -k "$pw" \
+    --plugin obfs-server --plugin-opts "obfs=tls"
   export AETHER_INTEROP_OBFS=1
 else
   echo "obfs-server not found: simple-obfs cases are skipped" >&2
@@ -48,7 +53,9 @@ start xray "$work/bin/xray" run -c "$work/xray.json"
 
 # 等待全部端口监听（最多 15 秒）。
 for port in $(grep -E '_PORT=' "$here/ports.env" | cut -d= -f2); do
-  if [[ "$port" == "$SS_OBFS_HTTP_PORT" && -z "${AETHER_INTEROP_OBFS:-}" ]]; then continue; fi
+  if [[ ("$port" == "$SS_OBFS_HTTP_PORT" || "$port" == "$SS_OBFS_TLS_PORT") && -z "${AETHER_INTEROP_OBFS:-}" ]]; then
+    continue
+  fi
   for _ in $(seq 1 150); do
     (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break
     sleep 0.1

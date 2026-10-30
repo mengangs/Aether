@@ -48,7 +48,7 @@ enum Interop {
                 handle.write(line)
                 try? handle.close()
             } else {
-                FileManager.default.createFile(atPath: path, contents: line)
+                _ = FileManager.default.createFile(atPath: path, contents: line)
             }
         }
     }
@@ -139,12 +139,39 @@ struct InteropCase: Sendable, CustomTestStringConvertible {
                         udpEnabled: true)
                 })
         }
+        let ss2022: [(String, String, Shadowsocks2022Method, String, Bool)] = [
+            ("SS 2022-blake3-aes-128-gcm", "SS2022_AES128_PORT", .blake3AES128GCM, "AETHER_INTEROP_PSK16", true),
+            ("SS 2022-blake3-aes-256-gcm", "SS2022_AES256_PORT", .blake3AES256GCM, "AETHER_INTEROP_PSK32", true),
+            (
+                "SS 2022-blake3-chacha20-poly1305", "SS2022_CHACHA_PORT", .blake3ChaCha20Poly1305,
+                "AETHER_INTEROP_PSK32", false
+            ),
+        ]
+        for (name, portKey, method, pskKey, udp) in ss2022 {
+            cases.append(
+                InteropCase(name: name, udp: udp) { valid in
+                    // 错误凭据：同长度的另一把 PSK。
+                    let psk =
+                        valid
+                        ? Interop.environment[pskKey] ?? ""
+                        : Data(repeating: 0x5A, count: method.keyLength).base64EncodedString()
+                    return Shadowsocks2022Connector(
+                        name: "SS2022", server: Interop.server(portKey), method: method, password: psk, udpEnabled: udp)!
+                })
+        }
         if Interop.obfsAvailable {
+            cases.append(
+                InteropCase(name: "SS aes-256-gcm + obfs-tls", udp: false) {
+                    ShadowsocksConnector(
+                        name: "SS", server: Interop.server("SS_OBFS_TLS_PORT"), method: .aes256GCM,
+                        password: password($0), obfs: SimpleObfsOptions(mode: .tls, host: "cdn.example.com"),
+                        udpEnabled: false)
+                })
             cases.append(
                 InteropCase(name: "SS aes-256-gcm + obfs-http", udp: false) {
                     ShadowsocksConnector(
                         name: "SS", server: Interop.server("SS_OBFS_HTTP_PORT"), method: .aes256GCM,
-                        password: password($0), obfs: SimpleObfsHTTPOptions(host: "cdn.example.com"),
+                        password: password($0), obfs: SimpleObfsOptions(host: "cdn.example.com"),
                         udpEnabled: false)
                 })
         }

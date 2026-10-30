@@ -168,7 +168,7 @@
 | `wireguard` | — | `section-name` | 引用 `[WireGuard 名称]` 节 | M7（预研） |
 | `snell`、`ssh`、`external`、`tailscale` 及其它 | — | — | 解析保留，节点标记不可用，`CFG-022` | 不支持 |
 
-Shadowsocks `encrypt-method` 支持：`aes-128-gcm`、`aes-256-gcm`、`chacha20-ietf-poly1305`、`2022-blake3-aes-128-gcm`、`2022-blake3-aes-256-gcm`、`2022-blake3-chacha20-poly1305`（M3 后半）。流加密（`rc4-md5`、`aes-*-cfb`、`chacha20` 等）已不安全，给出 `CFG-023`，节点不可用。
+Shadowsocks `encrypt-method` 支持：`aes-128-gcm`、`aes-256-gcm`、`chacha20-ietf-poly1305`、`2022-blake3-aes-128-gcm`、`2022-blake3-aes-256-gcm`、`2022-blake3-chacha20-poly1305`（M3-06；该方法的 UDP 需要 XChaCha20-Poly1305，M7 之前只转发 TCP）。流加密（`rc4-md5`、`aes-*-cfb`、`chacha20` 等）已不安全，给出 `CFG-023`，节点不可用。
 
 VMess 的旧版（`alterId > 0`、非 AEAD 头）不支持，给出 `CFG-023`。
 

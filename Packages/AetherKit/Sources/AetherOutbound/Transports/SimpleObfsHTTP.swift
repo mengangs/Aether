@@ -2,15 +2,34 @@ import AetherFoundation
 import Foundation
 import NIOCore
 
-/// simple-obfs http 的参数（docs/04 §5.5 `obfs-host`、`obfs-uri`）。
-public struct SimpleObfsHTTPOptions: Sendable, Hashable {
+/// simple-obfs 的参数（docs/04 §5.5 `obfs`、`obfs-host`、`obfs-uri`）。
+public struct SimpleObfsOptions: Sendable, Hashable {
+    public enum Mode: Sendable, Hashable {
+        case http
+        case tls
+    }
+
+    public var mode: Mode
     /// 为 nil 时用服务器地址。
     public var host: String?
+    /// 只用于 http。
     public var uri: String
 
-    public init(host: String? = nil, uri: String = "/") {
+    public init(mode: Mode = .http, host: String? = nil, uri: String = "/") {
+        self.mode = mode
         self.host = host
         self.uri = uri
+    }
+
+    /// 在 TCP 与协议之间加入对应的 Handler。
+    func install(on channel: any Channel, serverHost: String, serverPort: UInt16) throws {
+        switch mode {
+        case .http:
+            try channel.pipeline.syncOperations.addHandler(
+                SimpleObfsHTTPHandler(options: self, serverHost: serverHost, serverPort: serverPort))
+        case .tls:
+            try channel.pipeline.syncOperations.addHandler(SimpleObfsTLSHandler(host: host ?? serverHost))
+        }
     }
 }
 
@@ -33,7 +52,7 @@ final class SimpleObfsHTTPHandler: ChannelDuplexHandler, RemovableChannelHandler
     private var skippedResponse = false
     private var header = ByteBuffer()
 
-    init(options: SimpleObfsHTTPOptions, serverHost: String, serverPort: UInt16) {
+    init(options: SimpleObfsOptions, serverHost: String, serverPort: UInt16) {
         let name = options.host ?? serverHost
         let bracketed = name.contains(":") ? "[\(name)]" : name
         host = serverPort == 80 ? bracketed : "\(bracketed):\(serverPort)"

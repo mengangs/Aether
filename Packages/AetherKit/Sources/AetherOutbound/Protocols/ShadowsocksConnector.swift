@@ -9,12 +9,12 @@ import NIOPosix
 ///   之后每次写入加密为若干块（载荷 ≤ 0x3FFF）。服务端没有握手应答，密码错误表现为服务端关闭连接或
 ///   响应无法通过认证（`NET-032`）。
 /// - UDP：每包独立 salt、nonce 为零，载荷 = SOCKS 地址 ‖ 数据；一个关联一个 UDP socket，只接受来自服务器地址的包。
-/// - `obfs=http`：在 TCP 与协议之间叠加 simple-obfs http（`SimpleObfsHTTPHandler`）。
+/// - `obfs`：在 TCP 与协议之间叠加 simple-obfs http（`SimpleObfsHTTPHandler`）或 tls（`SimpleObfsTLSHandler`）。
 public struct ShadowsocksConnector: OutboundConnector {
     public let name: String
     public let server: ProxyServer
     public let method: ShadowsocksAEADMethod
-    public let obfs: SimpleObfsHTTPOptions?
+    public let obfs: SimpleObfsOptions?
     public let udpEnabled: Bool
     let masterKey: [UInt8]
     /// 生成 salt（测试注入固定值）。
@@ -26,7 +26,7 @@ public struct ShadowsocksConnector: OutboundConnector {
 
     public init(
         name: String, server: ProxyServer, method: ShadowsocksAEADMethod, password: String,
-        obfs: SimpleObfsHTTPOptions? = nil, udpEnabled: Bool
+        obfs: SimpleObfsOptions? = nil, udpEnabled: Bool
     ) {
         self.init(
             name: name, server: server, method: method, password: password, obfs: obfs, udpEnabled: udpEnabled,
@@ -35,7 +35,7 @@ public struct ShadowsocksConnector: OutboundConnector {
 
     init(
         name: String, server: ProxyServer, method: ShadowsocksAEADMethod, password: String,
-        obfs: SimpleObfsHTTPOptions?, udpEnabled: Bool, saltGenerator: @escaping @Sendable (Int) -> [UInt8]
+        obfs: SimpleObfsOptions?, udpEnabled: Bool, saltGenerator: @escaping @Sendable (Int) -> [UInt8]
     ) {
         self.name = name
         self.server = server
@@ -60,10 +60,7 @@ public struct ShadowsocksConnector: OutboundConnector {
         let serverPort = server.port
         return server.dial(context: context).flatMap { channel in
             channel.eventLoop.makeCompletedFuture { () -> any Channel in
-                if let obfs {
-                    try channel.pipeline.syncOperations.addHandler(
-                        SimpleObfsHTTPHandler(options: obfs, serverHost: serverHost, serverPort: serverPort))
-                }
+                try obfs?.install(on: channel, serverHost: serverHost, serverPort: serverPort)
                 var header = channel.allocator.buffer(capacity: SOCKSAddress.length(of: destination))
                 SOCKSAddress.write(destination, to: &header)
                 try channel.pipeline.syncOperations.addHandler(

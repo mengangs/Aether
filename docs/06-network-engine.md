@@ -332,13 +332,15 @@ public struct DialContext: Sendable {
 | Hysteria2 / TUIC v5 | 各自公开规范 | 基于 QUIC，需要先做技术预研（Swift 或宽松许可证 C 库），见 [14 M7](14-roadmap.md#m7进阶v1x) | M7 |
 | WireGuard | 白皮书 | 需要用户态 TCP/IP 栈把流转换为 IP 包，预研 | M7 |
 
-Shadowsocks AEAD 的实现（M3-01）：连接后立即发送 salt 与只含目标地址的首块（服务端先说话的协议也能工作），之后每次写入按 ≤ 0x3FFF 字节分块加密；服务端没有握手应答，密码错误时服务端通常保持连接不回复或直接关闭（shadowsocks-rust 的防探测行为），由流的超时或关闭结束；响应无法通过认证或长度超过 0x3FFF 时以 `NET-032` 关闭。UDP 关联为一个发往服务器的 UDP socket（服务器域名按 `ip-version` 解析出一个地址），只接受来自该地址的包，无法解开的包丢弃并计数。`2022-*` 方法与 `obfs=tls` 在 M3-06 之前节点不可用并如实标注。测试向量由 `Tests/Fixtures/vectors/shadowsocks/generate.py` 用 Python `cryptography`（OpenSSL）独立生成，`EVP_BytesToKey` 与 `openssl enc -md md5 -nosalt -P` 的输出比对。
+Shadowsocks AEAD 的实现（M3-01）：连接后立即发送 salt 与只含目标地址的首块（服务端先说话的协议也能工作），之后每次写入按 ≤ 0x3FFF 字节分块加密；服务端没有握手应答，密码错误时服务端通常保持连接不回复或直接关闭（shadowsocks-rust 的防探测行为），由流的超时或关闭结束；响应无法通过认证或长度超过 0x3FFF 时以 `NET-032` 关闭。UDP 关联为一个发往服务器的 UDP socket（服务器域名按 `ip-version` 解析出一个地址），只接受来自该地址的包，无法解开的包丢弃并计数。`obfs=tls` 与 2022 方法见下。测试向量由 `Tests/Fixtures/vectors/shadowsocks/generate.py` 用 Python `cryptography`（OpenSSL）独立生成，`EVP_BytesToKey` 与 `openssl enc -md md5 -nosalt -P` 的输出比对。
 
 Trojan 的实现（M3-03）：TLS 总是开启（未写 TLS 参数时用默认参数，完整验证），`ws=true` 时在 TLS 之上叠加 WebSocket；连接后立即发送请求头；服务端没有应答，密码错误时服务端关闭连接（或按其回落配置转发），连接本身无法判断凭据。UDP 关联为一条独立的 TLS（或 WS + TLS）连接，请求头随第一个数据报发出、地址取该数据报的目标；流不可写时新数据报直接丢弃并计数（不在用户态排队），流关闭即关联结束，帧格式错误时关闭流。SHA-224 在 `AetherOutbound/Crypto/SHA224.swift` 中实现，测试向量为 FIPS 180-4 / NIST 示例与 Python `hashlib` 在填充边界处的结果。
 
 VLESS 的实现（M3-05）：节点必须 `tls=true`（否则不可用并如实标注），`ws=true` 时叠加 WebSocket；连接后立即发送请求头；服务端通常把响应头与第一批数据一起发送，因此响应头在数据到达时剥掉（先交出其后的数据再移除剥离 Handler），不阻塞连接的返回，版本不为 0 时以 `NET-032` 关闭。UDP 的一条连接只能发往一个目标：关联内每个目标一条连接（命令 2，数据报为 2 字节长度 ‖ 载荷），最多 32 个目标，超出时关闭最久未发送的一个；连接建立期间每个目标最多排队 32 个数据报（与 §10 的待发队列一致，超出丢弃最旧的），建立失败时丢弃并在下一个数据报时重试。VMess 的 UDP 同样按目标建立连接。
 
 VMess 的实现（M3-04）：`encrypt-method=auto` 取 AES-128-GCM；`tls=true` 时叠加 TLS，`ws=true` 时叠加 WebSocket。连接后立即发送 AEAD 请求头（指令中随机填充 0–15 字节）；数据块的明文每块最多 16 KiB 减去标签；输出方向关闭时发送空块（不关闭底层连接，服务端据此结束上行），收到空块时向上报告输入结束，两个方向都结束后关闭连接。响应头在第一批数据到达时解密，长度、内容或响应认证字节不符时以 `NET-032` 关闭。UDP 每个目标一条连接（命令 2，同 VLESS 的按目标关联），每个数据块是一个数据报，超过一块上限的数据报丢弃。AES-128 单块加密、CRC32、FNV-1a 与嵌套 HMAC KDF 在 `AetherOutbound/Crypto/` 中实现：AES 用 FIPS-197 附录 C.1、CRC32 用标准校验值、FNV-1a 用参考值，KDF、AuthID、请求头、数据块与响应头用 `Tests/Fixtures/vectors/vmess/generate.py`（Python `cryptography` 独立实现）生成的向量。
+
+Shadowsocks 2022 的实现（M3-06）：PSK 为 `password` 的 Base64，长度必须等于方法的密钥长度（否则节点不可用），多用户的 `iPSK:uPSK` 形式不支持；会话子密钥用 `CBlake3` 的 derive_key。TCP 连接后立即发送 salt、固定长度头与变长头（不带首包载荷，因此按 SIP022 附 1–900 字节随机填充），之后的块载荷最多 0xFFFF；响应的类型、时间戳（±30 秒）与请求 salt 都要校验，不符或认证失败时以 `NET-032` 关闭，该次读取中的数据不交出。UDP 只支持 AES 变体：独立头以 PSK 做 AES 单块加解密（128 / 256 位，`AESBlock`），客户端会话 ID 每个关联一个、包 ID 从 0 递增，服务端会话的子密钥缓存最近 4 个；回包的类型、时间戳与客户端会话 ID 不符时丢弃并计数；不做包 ID 的防重放窗口（客户端只接受来自服务器地址且认证通过的包）。`2022-blake3-chacha20-poly1305` 的节点只转发 TCP，`udp-relay=true` 时写提示。测试向量由 `Tests/Fixtures/vectors/shadowsocks2022/generate.py` 用 Python `blake3`（官方绑定）与 `cryptography` 独立生成；AES-256 另用 FIPS-197 附录 C.3。
 
 密码学原语来自 swift-crypto。缺少的原语（SHA-224、AES 单块加密、CRC32、FNV-1a、HChaCha20 等）在 `AetherOutbound/Crypto/` 中实现，每个都必须有来自 RFC 或官方实现的测试向量。
 
@@ -349,7 +351,7 @@ VMess 的实现（M3-04）：`encrypt-method=auto` 取 AES-128-GCM；`tls=true` 
 | TLS | swift-nio-ssl 客户端；最低 TLS 1.2；SNI、ALPN 取配置（服务器地址为 IP 时不发 SNI）；默认完整验证：证书链由 NIOSSL 验证（Apple 平台上默认信任根走系统信任评估），主机名在握手完成后按与 NIOSSL 相同的规则比对叶子证书的备用名称（没有备用名称时比对 CN；服务器地址为 IP 且不发 SNI 时只比对 IP 备用名称），使各平台的主机名不匹配都报 `TLS-002`（系统信任评估会把它并入一般的链验证失败）；`skip-cert-verify` 关闭验证；`server-cert-fingerprint-sha256` 用自定义验证回调只比对叶子证书指纹（不做链与主机名验证）。同一组参数共享一个 `NIOSSLContext`（最多 32 个）；关闭时等待对端 `close_notify` 最多 1 秒。握手失败以 `TLS-001`–`TLS-005` 区分原因，请求记录的错误码为 `NET-033` 并在备注中附 TLS 码 |
 | WebSocket | 客户端升级：`GET ws-path`（不以 `/` 开头时补上），`Host` 取 `ws-headers` 中的 Host、自定义 SNI 或服务器名（非默认端口时附端口），其余 `ws-headers` 原样附加（升级所需的头不可覆盖，头值中的 CR / LF 去掉）；响应不是 `101` → `NET-030`（附状态码），`Upgrade` 或 `Sec-WebSocket-Accept` 不符 → `NET-032`。之后用 NIOWebSocket 的帧编解码：载荷用二进制帧、客户端掩码，单帧最多 16 KiB（更大的写入拆帧）；收到的单帧上限 128 KiB（解码缓冲上限，超出以 `NET-032` 关闭），二进制 / 文本 / 续帧都按字节流交出，`ping` 回 `pong`，收到 `close` 回 `close` 后关闭。WebSocket 没有半关闭：输出方向的关闭被忽略，连接在对端关闭、完全关闭（先发 `close`）或空闲超时时结束。暂不支持 early data |
 | simple-obfs http | 首包伪装为带 `Upgrade: websocket` 头的 `GET <obfs-uri>` 请求并以载荷为请求体（`Host` 取 `obfs-host`，未设置时用服务器地址，非 80 端口附端口；`User-Agent` 为随机的 curl 版本、随机 `Sec-WebSocket-Key`、`Content-Length` 为载荷长度，与 simple-obfs `obfs_http.c` 一致），跳过一次服务端的 HTTP 响应头（上限 16 KiB，超出 `NET-032`），之后为原始数据 |
-| simple-obfs tls | 按 simple-obfs 源码实现伪 TLS 握手（M3 后半） |
+| simple-obfs tls | 按 simple-obfs `obfs_tls.c` 的报文布局：第一次写入伪装成 TLS 1.2 ClientHello（随机数与会话 ID 随机，固定的 28 个密码套件与扩展），数据放在紧跟 ClientHello 固定部分的 session ticket 扩展中，其后是 SNI（`obfs-host` 或服务器地址）与其余扩展；之后的写入封装为应用数据记录（每条 ≤ 16 KiB）。服务端响应依次为 ServerHello、ChangeCipherSpec、伪装的 Finished（握手记录，第一批数据就在其中），之后为应用数据记录；客户端跳过 ServerHello 与 ChangeCipherSpec，交出其后握手记录与应用数据记录的内容，记录超长或类型未知时 `NET-032` |
 
 ### 8.6 连接复用
 

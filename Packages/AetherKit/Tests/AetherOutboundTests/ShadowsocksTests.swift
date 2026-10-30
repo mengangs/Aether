@@ -295,7 +295,7 @@ struct ShadowsocksConnectorTests {
         }
         let connector = ShadowsocksConnector(
             name: "SS", server: ProxyServer(host: "ss.example.com", port: UInt16(server.port)), method: method,
-            password: "secret", obfs: obfs ? SimpleObfsHTTPOptions(host: "cdn.example.org", uri: "obfs") : nil,
+            password: "secret", obfs: obfs ? SimpleObfsOptions(host: "cdn.example.org", uri: "obfs") : nil,
             udpEnabled: false)
         let channel = try await connector.connect(to: testDestination, context: dialContext(group.next())).get()
         #expect(await Poll.until { destinations.withLockedValue { $0 } == [testDestination] })

@@ -171,29 +171,35 @@ struct RuntimeConfigurationTests {
 
     }
 
-    @Test("Shadowsocks AEAD nodes get connectors; 2022 methods and obfs=tls stay unavailable until M3-06")
+    @Test("Shadowsocks AEAD and 2022 nodes get connectors with simple-obfs; 2022 chacha20 relays TCP only")
     func compileShadowsocks() {
         let configuration = compile(
             """
             [Proxy]
             A = ss, ss.example.com, 8388, encrypt-method=chacha20-ietf-poly1305, password=pw, udp-relay=true, obfs=http, obfs-host=cdn.example.org
-            B = ss, ss.example.com, 8389, encrypt-method=2022-blake3-aes-128-gcm, password=AAAAAAAAAAAAAAAAAAAAAA==
-            C = ss, ss.example.com, 8390, encrypt-method=aes-128-gcm, password=pw, obfs=tls
+            B = ss, ss.example.com, 8389, encrypt-method=2022-blake3-aes-128-gcm, password=AAAAAAAAAAAAAAAAAAAAAA==, udp-relay=true, obfs=tls
+            C = ss, ss.example.com, 8390, encrypt-method=2022-blake3-chacha20-poly1305, password=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=, udp-relay=true
+            D = ss, ss.example.com, 8391, encrypt-method=2022-blake3-aes-256-gcm, password=AAAAAAAAAAAAAAAAAAAAAA==
             """)
         guard case .proxy(let aead) = configuration.policies["A"],
             case .proxy(let ss2022) = configuration.policies["B"],
-            case .proxy(let obfsTLS) = configuration.policies["C"]
+            case .proxy(let chacha) = configuration.policies["C"],
+            case .proxy(let shortKey) = configuration.policies["D"]
         else {
             Issue.record("nodes missing")
             return
         }
         let connector = aead.connector as? ShadowsocksConnector
         #expect(connector?.method == .chacha20IETFPoly1305)
-        #expect(connector?.obfs == SimpleObfsHTTPOptions(host: "cdn.example.org", uri: "/"))
-        #expect(connector?.server.port == 8388)
+        #expect(connector?.obfs == SimpleObfsOptions(mode: .http, host: "cdn.example.org", uri: "/"))
         #expect(aead.supportsUDP && connector?.capabilities.contains(.udp) == true)
-        #expect(ss2022.connector == nil && ss2022.unavailableReason?.contains("M3-06") == true)
-        #expect(obfsTLS.connector == nil && obfsTLS.unavailableReason?.contains("obfs tls") == true)
+        let modern = ss2022.connector as? Shadowsocks2022Connector
+        #expect(modern?.method == .blake3AES128GCM && modern?.obfs?.mode == .tls)
+        #expect(ss2022.supportsUDP)
+        #expect(chacha.connector is Shadowsocks2022Connector && !chacha.supportsUDP)
+        #expect(configuration.notes.contains { $0.contains("C:") && $0.contains("XChaCha20") })
+        // PSK 长度与方法不符。
+        #expect(shortKey.connector == nil && shortKey.unavailableReason != nil)
     }
 
     @Test("Trojan nodes always use TLS and carry ws-path / ws-headers when ws=true")

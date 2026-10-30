@@ -162,23 +162,37 @@ public final class RuntimeConfiguration: Sendable {
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
                     supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
         case .shadowsocks(let method, let password, let obfs):
-            guard let aead = ShadowsocksAEADMethod(rawValue: method.rawValue) else {
-                return unavailable(
-                    spec, identity: identity, reason: "\(method.rawValue) arrives with M3-06", notes: &notes)
+            let obfsOptions = obfs.map {
+                SimpleObfsOptions(mode: $0.mode == .tls ? .tls : .http, host: $0.host, uri: $0.uri ?? "/")
             }
-            if obfs?.mode == .tls {
-                return unavailable(
-                    spec, identity: identity, reason: "simple-obfs tls arrives with M3-06", notes: &notes)
+            let ssServer = ProxyServer(host: host, port: port, addressPreference: server.addressPreference)
+            let connector: (any OutboundConnector)?
+            var supportsUDP = spec.udpRelay
+            if let aead = ShadowsocksAEADMethod(rawValue: method.rawValue) {
+                connector = ShadowsocksConnector(
+                    name: spec.name, server: ssServer, method: aead, password: password, obfs: obfsOptions,
+                    udpEnabled: spec.udpRelay)
+            } else if let method2022 = Shadowsocks2022Method(rawValue: method.rawValue) {
+                connector = Shadowsocks2022Connector(
+                    name: spec.name, server: ssServer, method: method2022, password: password, obfs: obfsOptions,
+                    udpEnabled: spec.udpRelay)
+                if spec.udpRelay, !method2022.supportsUDP {
+                    supportsUDP = false
+                    notes.append(
+                        "Proxy \(spec.name): \(method.rawValue) relays TCP only until M7 (UDP needs XChaCha20)")
+                }
+            } else {
+                connector = nil
             }
-            let connector = ShadowsocksConnector(
-                name: spec.name,
-                server: ProxyServer(host: host, port: port, addressPreference: server.addressPreference),
-                method: aead, password: password,
-                obfs: obfs.map { SimpleObfsHTTPOptions(host: $0.host, uri: $0.uri ?? "/") }, udpEnabled: spec.udpRelay)
+            guard let connector else {
+                return unavailable(
+                    spec, identity: identity, reason: "Invalid password or method for \(method.rawValue)",
+                    notes: &notes)
+            }
             return .proxy(
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
-                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
+                    supportsUDP: supportsUDP, identity: identity, blockQUIC: spec.blockQUIC))
         case .trojan(let password):
             let connector = TrojanConnector(
                 name: spec.name,

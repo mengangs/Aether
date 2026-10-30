@@ -76,12 +76,12 @@ private final class CountingRandom: Sendable {
 struct VMessPrimitiveTests {
     @Test("AES-128 single block: FIPS-197 Appendix C.1")
     func aes() throws {
-        let cipher = try #require(AES128Block(key: Array(0..<16)))
+        let cipher = try #require(AESBlock(key: Array(0..<16)))
         let plain: [UInt8] = [
             0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
         ]
         #expect(cipher.encrypt(plain) == hex("69c4e0d86a7b0430d8cdb78070b4c55a"))
-        #expect(AES128Block(key: [1, 2, 3]) == nil)
+        #expect(AESBlock(key: [1, 2, 3]) == nil)
         #expect(cipher.encrypt([1]) == nil)
     }
 

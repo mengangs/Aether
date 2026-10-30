@@ -122,7 +122,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | [x] | M3-03 | Trojan（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
 | [x] | M3-04 | VMess AEAD（TCP、WS、TLS、UDP） | 06 §8.4 | 互通；确认 ChunkMasking 结论并回填（06 §8.4：Xray 接受只置 ChunkStream） |
 | [x] | M3-05 | VLESS（TLS、WS+TLS、UDP） | 06 §8.4 | 互通 |
-| [ ] | M3-06 | Shadowsocks 2022（TCP、AES 变体 UDP）、simple-obfs tls | 06 §8.4 | 测试向量 + 互通 |
+| [x] | M3-06 | Shadowsocks 2022（TCP、AES 变体 UDP）、simple-obfs tls | 06 §8.4 | 测试向量 + 互通 |
 | [ ] | M3-07 | `url-test` / `fallback` / `load-balance`；测速与被动降级；IPC `testPolicies` / `getTestResults` | 06 §9 | 集成测试（模拟延迟与失败） |
 | [ ] | M3-08 | 外部资源管理：两侧下载、元数据、条件请求、gzip、校验、退避、调度、后台刷新 | 11 §5 | 单元测试 + 真机 V16 |
 | [ ] | M3-09 | `policy-path` 订阅：INI、YAML、URI 列表；`include-all-proxies`、`include-other-group`、正则过滤 | 04 §6.2、§12.4 | 每种格式的 fixtures |
