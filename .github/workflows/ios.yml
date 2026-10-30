@@ -50,7 +50,9 @@ jobs:
         run: Scripts/ci-run.sh swift Scripts/check-architecture.swift .
 
       - name: Package tests (macOS host)
-        run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --parallel
+        # 串行运行：一旦某个测试卡住，日志中最后一条 started 即为它；步骤超时避免占满整个作业时限。
+        timeout-minutes: 15
+        run: Scripts/ci-run.sh swift test --package-path Packages/AetherKit --no-parallel
 
       - name: Install XcodeGen
         run: brew install xcodegen
