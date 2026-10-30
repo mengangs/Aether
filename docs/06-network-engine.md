@@ -216,6 +216,16 @@ misc:
 9. **转发**：入站 Channel 与出站 Channel 之间用胶水 Handler 双向转发；开启 `allowRemoteHalfClosure`，正确传递半关闭。
 10. **记录**：请求记录更新各阶段耗时（DNS、连接、握手、首字节）、字节数、结束状态与错误码。
 
+实现说明（M2）：
+
+- 嗅探只对 TUN 入站的 TCP 流进行；嗅探到的主机名只在前面各步都没有得到主机名时采用，应用协议（HTTPS / HTTP）总是记录。
+- 出站模式为全局但未设置全局策略（或策略已不存在）时，使用第一个非隐藏的策略组，没有策略组时为 DIRECT。
+- DIRECT：原始目标是真实 IP 时直接连接该 IP（即使反查或嗅探得到了主机名，也不重新解析）；目标是域名或 Fake IP 时按域名解析。
+- 规则续算前的路由解析同时查询 A 与 AAAA，取首个 IPv4（没有则 IPv6）；解析失败或超时置 `resolutionFailed` 继续判定（`FINAL,…,dns-failed`），请求记录备注"DNS resolution for routing failed"。
+- 发往 DNS 地址（或命中 `hijack-dns`）的 TCP 连接交给 DNS 服务，不进入路由。
+- HTTP 代理入站的每个绝对形式请求各有一条请求记录与 ID。
+- 运行配置之外的状态（出站模式、全局策略、策略组选择）由路由与 `PolicyRegistry` 持有，替换运行配置时保留。
+
 ### 6.1 超时
 
 | 阶段 | 超时 |
@@ -410,6 +420,7 @@ public struct RequestRecord: Codable, Sendable, Identifiable {
 ```
 
 - 活跃流保存在字典中；结束的流进入环形缓冲（默认 500，可在设置中调为 200–2000）。
+- 类型定义在 `AetherIPC`（App 解码同一结构）。M2 中 `timings.connect` 是到出站可用为止的总耗时（含代理与 TLS 握手），`handshake` 暂不单独计量；`url` 只记录到路径（去掉查询串与片段）。TLS 握手失败记为 `NET-033`，具体的 `TLS` 码写在备注中。
 - App 通过 IPC 分页增量拉取（[10 §2](10-control-ipc.md#2-ipc-协议)）。
 - 设置中开启"保存请求历史"时，结束的记录批量写入数据库，保留期与容量见 [11 §4](11-storage.md#4-数据库)。
 
@@ -436,7 +447,8 @@ public struct RequestRecord: Codable, Sendable, Identifiable {
 `RuntimeConfiguration` 由隧道在控制面编译，包含：通用设置、`RuleProgram`、策略与组定义、DNS 配置、MitM 配置、编译后的重写程序、脚本定义、外部资源引用、修订号。
 
 - 连接器在每次替换时重建（开销很小）；旧连接继续使用旧连接器直到结束。
-- 测速结果按节点身份迁移：身份 = 类型 + 服务器 + 端口 + 凭据哈希。改了节点参数即视为新节点。
+- 测速结果按节点身份迁移：身份 = 类型 + 服务器 + 端口 + 凭据哈希（FNV-1a，只用于比较，不可逆推凭据）。改了节点参数即视为新节点。
+- M2 中 HTTP / HTTPS / SOCKS5 / SOCKS5-TLS 节点生成连接器；Shadowsocks、Trojan、VMess、VLESS 节点保留为"不可用"（选中时 `NET-020`，M3 实现）；`policy-path` 订阅成员 M3 起加载。编译时的这些提示写入日志簿。
 
 ## 15. 错误码
 

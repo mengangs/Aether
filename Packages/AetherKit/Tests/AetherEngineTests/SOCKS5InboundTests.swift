@@ -9,23 +9,32 @@ import Testing
 
 @testable import AetherEngine
 
-/// 回显服务的 Handler。
+/// 回显服务的 Handler：读到 EOF 时关闭（像多数真实服务器一样，不保持半关闭）。
 final class EchoHandler: ChannelInboundHandler, Sendable {
     typealias InboundIn = ByteBuffer
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         context.writeAndFlush(data, promise: nil)
     }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if case .some(.inputClosed) = event as? ChannelEvent {
+            context.close(promise: nil)
+        }
+        context.fireUserInboundEventTriggered(event)
+    }
 }
 
-/// 测试用接收方：TCP 直接连到目标（`localhost` 视为 127.0.0.1）并胶合；UDP 原样回显。
+/// 测试用接收方：TCP 直接连到目标（`localhost` 与 `*.example.com` 视为 127.0.0.1）并胶合；UDP 原样回显。
 final class DirectTestAcceptor: InboundAcceptor, @unchecked Sendable {
     let requests = NIOLockedValueBox<[InboundTCPRequest]>([])
     let associations = NIOLockedValueBox<[SOCKS5UDPAssociation]>([])
 
     func acceptTCP(_ request: InboundTCPRequest, channel: any Channel) {
         requests.withLockedValue { $0.append(request) }
-        let host = request.destination.hostText == "localhost" ? "127.0.0.1" : request.destination.hostText
+        // 测试不访问公网：localhost 与 *.example.com 一律连到 127.0.0.1。
+        let text = request.destination.hostText
+        let host = text == "localhost" || text.hasSuffix(".example.com") ? "127.0.0.1" : text
         ChannelTuning.configure(ClientBootstrap(group: channel.eventLoop))
             .connect(host: host, port: Int(request.destination.port))
             .whenComplete { result in
