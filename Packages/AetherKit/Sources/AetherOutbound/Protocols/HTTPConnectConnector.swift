@@ -2,38 +2,60 @@ import AetherFoundation
 import Foundation
 import NIOCore
 
-/// 代理节点的服务器端点与传输层（docs/04 §5.2–§5.3）。
+/// 代理节点的服务器端点与传输层（docs/04 §5.2–§5.4、06 §8.1）：TCP → TLS（若有）→ WebSocket（若有）。
 public struct ProxyServer: Sendable, Hashable {
     public var host: String
     public var port: UInt16
     public var addressPreference: AddressFamilyPreference
     /// 为 nil 时为明文 TCP。
     public var tls: TLSClientOptions?
+    /// 为 nil 时不使用 WebSocket。
+    public var webSocket: WebSocketClientOptions?
 
     public init(
-        host: String, port: UInt16, addressPreference: AddressFamilyPreference = .dual, tls: TLSClientOptions? = nil
+        host: String, port: UInt16, addressPreference: AddressFamilyPreference = .dual, tls: TLSClientOptions? = nil,
+        webSocket: WebSocketClientOptions? = nil
     ) {
         self.host = host
         self.port = port
         self.addressPreference = addressPreference
         self.tls = tls
+        self.webSocket = webSocket
     }
 
-    /// 连接服务器并完成 TLS（若有）。TLS 失败以 `TLSError` 结束（请求记录归入 `NET-033`）。
+    /// 连接服务器并逐层完成传输层握手。TLS 失败以 `TLSError` 结束（请求记录归入 `NET-033`）；
+    /// WebSocket 升级失败见 `WebSocketTransport`。任一层失败时关闭连接。
     public func dial(context: DialContext) -> EventLoopFuture<any Channel> {
-        let connected = TCPDialer.connect(
+        var future = TCPDialer.connect(
             host: host, port: port, preference: addressPreference, resolver: context.serverResolver, nat64: nil,
             eventLoop: context.eventLoop)
-        guard let tls else { return connected }
         let host = self.host
+        let port = self.port
         let deadline = context.deadline
-        return connected.flatMap { channel in
-            TLSTransport.handshake(on: channel, serverHost: host, options: tls, deadline: deadline).flatMapErrorThrowing
-            {
-                error in
-                channel.close(promise: nil)
-                throw error
+        if let tls {
+            future = future.flatMap { channel in
+                TLSTransport.handshake(on: channel, serverHost: host, options: tls, deadline: deadline)
+                    .closingOnFailure(channel)
             }
+        }
+        if let webSocket {
+            let tls = self.tls
+            future = future.flatMap { channel in
+                WebSocketTransport.upgrade(
+                    on: channel, serverHost: host, port: port, tls: tls, options: webSocket, deadline: deadline
+                ).closingOnFailure(channel)
+            }
+        }
+        return future
+    }
+}
+
+extension EventLoopFuture where Value == any Channel {
+    /// 失败时关闭 `channel` 并原样传递错误。
+    func closingOnFailure(_ channel: any Channel) -> EventLoopFuture<any Channel> {
+        flatMapErrorThrowing { error in
+            channel.close(promise: nil)
+            throw error
         }
     }
 }

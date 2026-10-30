@@ -339,7 +339,7 @@ public struct DialContext: Sendable {
 | 传输 | 要点 |
 | --- | --- |
 | TLS | swift-nio-ssl 客户端；最低 TLS 1.2；SNI、ALPN 取配置（服务器地址为 IP 时不发 SNI）；默认完整验证：证书链由 NIOSSL 验证（Apple 平台上默认信任根走系统信任评估），主机名在握手完成后按与 NIOSSL 相同的规则比对叶子证书的备用名称（没有备用名称时比对 CN；服务器地址为 IP 且不发 SNI 时只比对 IP 备用名称），使各平台的主机名不匹配都报 `TLS-002`（系统信任评估会把它并入一般的链验证失败）；`skip-cert-verify` 关闭验证；`server-cert-fingerprint-sha256` 用自定义验证回调只比对叶子证书指纹（不做链与主机名验证）。同一组参数共享一个 `NIOSSLContext`（最多 32 个）；关闭时等待对端 `close_notify` 最多 1 秒。握手失败以 `TLS-001`–`TLS-005` 区分原因，请求记录的错误码为 `NET-033` 并在备注中附 TLS 码 |
-| WebSocket | NIOWebSocket 客户端升级：`GET ws-path`，`Host` 取 `ws-headers` 中的 Host 或 SNI 或服务器名；载荷用二进制帧，客户端掩码；暂不支持 early data |
+| WebSocket | 客户端升级：`GET ws-path`（不以 `/` 开头时补上），`Host` 取 `ws-headers` 中的 Host、自定义 SNI 或服务器名（非默认端口时附端口），其余 `ws-headers` 原样附加（升级所需的头不可覆盖，头值中的 CR / LF 去掉）；响应不是 `101` → `NET-030`（附状态码），`Upgrade` 或 `Sec-WebSocket-Accept` 不符 → `NET-032`。之后用 NIOWebSocket 的帧编解码：载荷用二进制帧、客户端掩码，单帧最多 16 KiB（更大的写入拆帧）；收到的单帧上限 128 KiB（解码缓冲上限，超出以 `NET-032` 关闭），二进制 / 文本 / 续帧都按字节流交出，`ping` 回 `pong`，收到 `close` 回 `close` 后关闭。WebSocket 没有半关闭：输出方向的关闭被忽略，连接在对端关闭、完全关闭（先发 `close`）或空闲超时时结束。暂不支持 early data |
 | simple-obfs http | 首包伪装为带 `Upgrade: websocket` 头的 HTTP 请求并携带载荷，跳过服务端的 HTTP 响应头，之后为原始数据 |
 | simple-obfs tls | 按 simple-obfs 源码实现伪 TLS 握手（M3 后半） |
 
