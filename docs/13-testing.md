@@ -277,7 +277,7 @@ M2 没有测速，"测速结果刷新"在 M3 补测。
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M0 | v0.1.0 → `c156d19`（release run 40922283723） | 2026-10-29 | 8/8 完成 | core / ios / release 全绿 | V01 待验证（步骤见 §6.1） | 待真机（M0 无性能项，空隧道 footprint 可在 V01 时顺带记录） | README 状态与功能列表已同步；仓库描述需所有者手动更新（开发会话无仓库设置写权限） | 0.1.0 节已写，`MARKETING_VERSION = 0.1.0` | 隐私清单已声明；依赖仅 swift-log，许可页 M4 起生成 |
 | M1 | v0.2.0 → `ec447d5`（release run 40974499577） | 2026-10-29 | 11/11 完成 | core（含基准作业）/ ios / release 全绿 | M1 无真机验收行 | 无真机项；Linux 基准见 05 §5 | README 状态与功能列表已同步；仓库描述需所有者手动更新 | 0.2.0 节已写，`MARKETING_VERSION = 0.2.0` | 未新增需声明的 API；新依赖 swift-crypto / swift-asn1 已登记，许可页 M4 起生成 |
-| M2 | v0.3.0 → 本行所在提交（release run 见 M3 计划提交） | 2026-10-30 | 13/13 完成 | core / ios / release 全绿 | V02–V12 待验证（步骤见 §6.1） | 待真机（V02 footprint、V10 hev 参数随验收追加到 §8） | README 状态与功能列表已同步；仓库描述需所有者手动更新 | 0.3.0 节已写，`MARKETING_VERSION = 0.3.0` | 未新增需声明的 API（M0 已声明的四类覆盖文件时间戳等用法）；新依赖 swift-nio / swift-nio-ssl / swift-certificates / GRDB 已登记，许可页 M4 起生成 |
+| M2 | v0.3.0 → `7834cfb`（release run 41039803629） | 2026-10-30 | 13/13 完成 | core / ios / release 全绿 | V02–V12 待验证（步骤见 §6.1） | 待真机（V02 footprint、V10 hev 参数随验收追加到 §8） | README 状态与功能列表已同步；仓库描述需所有者手动更新 | 0.3.0 节已写，`MARKETING_VERSION = 0.3.0` | 未新增需声明的 API（M0 已声明的四类覆盖文件时间戳等用法）；新依赖 swift-nio / swift-nio-ssl / swift-certificates / GRDB 已登记，许可页 M4 起生成 |
 
 ## 8. 测量记录
 
