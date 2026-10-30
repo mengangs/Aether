@@ -103,7 +103,7 @@ public struct ModuleEntry: Codable, Sendable, Identifiable {
 }
 ```
 
-`selections.json`：`{"schemaVersion": 1, "selections": {"<profileID>": {"<组名>": "<成员名>"}}}`。
+`selections.json`：`{"schemaVersion": 1, "selections": {"<profileID>": {"<组名>": "<成员名>"}}}`。最多保存 64 个配置的选择，超出时保留当前配置、按配置 ID 排序丢弃靠后的。
 
 所有 JSON 文件都带 `schemaVersion`。读方遇到更高版本时按只读方式尽力解析并记录警告；写方总是写当前版本。
 

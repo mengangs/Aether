@@ -117,6 +117,15 @@ public enum ProfileInspector {
 
     // MARK: 内部
 
+    /// 用给定内容（URL → 文本）编译规则集与域名集，供 `aether-cli run` 编译运行配置；缺失的资源记入提示。
+    public static func ruleResources(_ resolved: ResolvedProfile, contents: [String: String]) -> (
+        provider: any RuleResourceProvider, notes: [String]
+    ) {
+        var notes: [String] = []
+        let provider = InspectorResources(resolved: resolved, contents: contents, notes: &notes)
+        return (provider, notes)
+    }
+
     public static func resolve(_ profile: Source, modules: [Source]) -> ResolvedProfile {
         ProfileResolver.resolve(
             profileText: profile.text, fileName: profile.name,

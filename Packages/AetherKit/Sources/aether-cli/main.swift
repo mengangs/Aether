@@ -27,7 +27,8 @@ let usage = """
           本地路径的规则集相对配置文件所在目录读取。
       render <配置> [--redact]
           重新渲染配置；--redact 遮盖密码、UUID、令牌等敏感值。
-      run --profile <文件> --socks <地址> --http <地址>（M2）
+      run <配置> [--socks <地址:端口>] [--http <地址:端口>] [--module <模块>]...
+          在本机运行引擎：SOCKS5 入站（无认证，默认 127.0.0.1:1080）与可选的 HTTP 代理入站，Ctrl-C 停止。
     """
 
 struct CLIError: Error {
@@ -155,7 +156,11 @@ func run(_ arguments: [String]) throws -> Int32 {
 }
 
 do {
-    exit(try run(Array(CommandLine.arguments.dropFirst())))
+    let arguments = Array(CommandLine.arguments.dropFirst())
+    if arguments.first == "run" {
+        exit(try await runEngine(Array(arguments.dropFirst())))
+    }
+    exit(try run(arguments))
 } catch let error as CLIError {
     FileHandle.standardError.write(Data("aether-cli: \(error.message)\n\n\(usage)\n".utf8))
     exit(64)

@@ -101,6 +101,8 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 4. 策略组状态迁移：同名同类型的组保留选择与测速结果；选择的成员已不存在时回到第一个成员。
 5. 清空规则决策缓存、Fake IP 之外的 DNS 正向缓存保持不变。
 
+实现（M2-07）：`Engine.reload` 在数据面 EventLoop 上依次替换路由的运行配置、DNS 的 Host 表与上游、迁移策略组选择，然后按 `system-proxy` 启停 HTTP 代理入站；正在转发的流持有自己的连接器与已建立的连接，不受替换影响。选择变化（IPC `selectPolicy` 与重载后的迁移）通过回调写入 `State/selections.json`。
+
 ### 2.5 休眠与唤醒
 
 - `sleep(completionHandler:)`：暂停测速与 cron 定时器，落盘统计，调用 completion。
@@ -341,7 +343,7 @@ v1 不做协议层多路复用（如 mux、h2 连接池）。DoH / DoT 上游与
 
 | 类型 | 解析到成员的方式 |
 | --- | --- |
-| `select` | 当前选择；无效时回到第一个成员。选择持久化到 `State/selections.json`，键为 配置 ID + 组名 |
+| `select` | 当前选择；无效时回到第一个成员。选择持久化到 `State/selections.json`，键为 配置 ID + 组名（最多保存 64 个配置的选择） |
 | `url-test` | 延迟最低的可用成员。只有新最低值比当前成员低于 `tolerance` 时才切换；当前成员失败则立即切到最佳可用成员。没有任何结果时：`evaluate-before-use = false` 用第一个成员并立即后台测速；`true` 等待测速完成（最多 `timeout`） |
 | `fallback` | 按成员顺序第一个可用者；全部不可用时用第一个成员 |
 | `load-balance` | 在可用成员中随机选择；`persistent = true` 时以主机名做最高随机权重哈希（HRW），成员增减时尽量保持映射稳定 |
