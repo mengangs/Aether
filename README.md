@@ -32,14 +32,14 @@ Aether 是一款基于规则的 iOS 网络代理客户端。它的名字来自�
 
 ## 状态
 
-开发中。当前版本 **v0.2.0（M1 配置内核）**：配置解析、校验、模块叠加、编辑与规则引擎已完成并可用 `aether-cli` 在电脑上测试；App 仍只有空隧道，尚不处理任何流量（M2 起接管流量）。进度与下一步见 [docs/14-roadmap.md](docs/14-roadmap.md)，变更见 [CHANGELOG.md](CHANGELOG.md)。
+开发中。当前版本 **v0.3.0（M2 最小可用数据面）**：隧道接管全部流量（TUN 与系统 HTTP 代理），DIRECT / HTTP(S) / SOCKS5 出站按规则分流，Fake IP DNS，UDP 转发；App 可导入配置、切换出站模式与 `select` 策略组、查看请求与诊断。Shadowsocks 等协议、自动策略组与订阅在 M3。进度与下一步见 [docs/14-roadmap.md](docs/14-roadmap.md)，变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 | 功能 | 状态 |
 | --- | --- |
 | 工程骨架、CI、未签名 ipa 发布 | ✅ v0.1.0 |
 | VPN 配置安装与空隧道、IPC 状态查询 | ✅ v0.1.0 |
 | 配置解析、校验、模块与规则引擎（`aether-cli`） | ✅ v0.2.0 |
-| 全流量接管、DIRECT / HTTP / SOCKS5、规则分流 | 🚧 M2（v0.3） |
+| 全流量接管、DIRECT / HTTP / SOCKS5、规则分流、UDP、App 基础页面 | ✅ v0.3.0 |
 | Shadowsocks、Trojan、VMess、VLESS，自动策略组，订阅 | 🚧 M3（v0.4） |
 | 编辑器、小组件、快捷指令 | 🚧 M4（v0.5） |
 | MitM、重写、抓包 | 🚧 M5（v0.6） |

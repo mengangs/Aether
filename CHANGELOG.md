@@ -4,6 +4,39 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+M2：最小可用数据面。隧道接管全部流量，DIRECT / HTTP(S) / SOCKS5 出站按规则分流，App 可以导入配置、切换出站模式与策略、查看请求。
+
+### Added
+
+- 数据面：单 EventLoop 的流管理与胶水 Handler（背压、半关闭、双向空闲超时、并发上限）（M2-01）。
+- DNS：报文编解码、Fake IP 池与跨重启快照、`[Host]`、缓存、UDP / TCP / system 上游、应答与路由解析（M2-02）。
+- 入站：内部 SOCKS5（认证、CONNECT、UDP ASSOCIATE）与 HTTP 代理（CONNECT、绝对形式请求转发）（M2-03、M2-04）。
+- 出站：DIRECT（Happy Eyeballs、NAT64 合成）、拒绝系列（含 DROP 升级）、HTTP / HTTPS、SOCKS5（含 UDP）、TLS 传输（指纹固定、跨平台一致的主机名校验）（M2-06）。
+- `Router`：主机名恢复、嗅探（TLS SNI、HTTP Host）、出站模式、规则匹配与解析续算、策略解析、前置检查、请求记录（M2-05）。
+- `select` 组与选择持久化、运行配置热替换（已有连接不中断）、`aether-cli run`（M2-07）。
+- UDP 关联与 NAT 表：每目标独立路由、同策略共享出站关联、回包按 Fake IP 归属、block-quic、`udp-policy-not-supported-behaviour`；DNS 数据报分流（M2-08）。
+- 统计：会话计数、1 Hz 采样、GRDB 数据库（`traffic_daily`、`logbook`）、迁移与保留策略（M2-12）。
+- `AetherTunnelSupport`：完整隧道网络设置（IPv4 / IPv6、DNS、系统代理）、utun 描述符查找与 socketpair 备用桥接、hev 线程、路径监控与 SSID、libresolv 系统 DNS、`RLIMIT_NOFILE`（M2-09）。
+- 隧道生命周期（启动、停止、重载、休眠唤醒）、状态快照与 Darwin 通知、内存压力处理、IPC 的 M2 命令（M2-10）。
+- App 五个标签：首页（出站模式、流量曲线、常用策略组）、策略、请求与详情、配置（URL / 文件导入、提交运行包）、诊断；每个页面带 mock 预览（M2-11）。
+- V02–V12 真机验收步骤（M2-13）。
+
+### Changed
+
+- 新增依赖：swift-nio、swift-nio-ssl、swift-certificates、GRDB（均为宽松许可证，已登记在 docs/03 §5.1）；Linux 构建需要 `libsqlite3-dev`。
+- 新增 C 目标 `CAetherTunnel`（仅 Apple）与错误码 `NET-*`、`TLS-001`–`TLS-005`、`STO-002`、`STO-003`。
+- macOS CI 的包测试改为先构建、再串行运行，并由看门狗在超时后打印线程调用栈。
+
+### Fixed
+
+- SOCKS5 UDP 关联在 Apple 平台上察觉不到服务器关闭控制连接（kqueue 只在有读取兴趣时报告 EOF）。
+
+### 待真机验证
+
+- V02–V12（步骤见 docs/13-testing.md §6.1）；hev 参数保持初值，待 V10 压测后回填 docs/06 §4.2。
+
 ## [0.2.0] - 2026-10-29
 
 M1：配置内核。配置的解析、校验、模块叠加、编辑与规则引擎完整可用，不涉及网络。
@@ -45,6 +78,7 @@ M0：工程骨架。工程能构建；App 能安装 VPN 配置并启动一个不
 
 - V01：首次安装 VPN 配置、拒绝授权后再次授权（步骤见 docs/13-testing.md §6.1）。
 
-[Unreleased]: https://github.com/mengangs/Aether/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mengangs/Aether/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mengangs/Aether/releases/tag/v0.3.0
 [0.2.0]: https://github.com/mengangs/Aether/releases/tag/v0.2.0
 [0.1.0]: https://github.com/mengangs/Aether/releases/tag/v0.1.0
