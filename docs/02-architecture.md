@@ -66,7 +66,7 @@ Target 内只放平台胶水代码和界面；业务逻辑全部在 Swift Packag
 | `AetherScript` | Apple | JavaScriptCore | `ScriptRuntime` 的 JavaScriptCore 实现与 JS API 桥接 |
 | `AetherControl` | Apple | NetworkExtension | App 侧隧道管理（`TunnelController`）、IPC 客户端（`TunnelClient`）、状态观察；App 与小组件共用 |
 | `AetherKeychain` | Apple | Security、`AetherIPC` | Keychain 访问：启动时探测访问组的 Team ID 前缀（03 §8.4）；M5 起存取 MitM CA 私钥；App 与隧道共用 |
-| `AetherTunnelSupport` | Apple | NetworkExtension、CHevSocks5Tunnel | 隧道网络设置构建、utun 描述符获取、hev 桥接、网络路径监控、Darwin 通知发送 |
+| `AetherTunnelSupport` | Apple | NetworkExtension、Network、CHevSocks5Tunnel、CAetherTunnel | 隧道网络设置构建、utun 描述符获取、hev 桥接、网络路径监控、Darwin 通知发送 |
 | `aether-cli` | 全部（可执行） | `AetherEngine` 等 | 开发调试命令行：校验配置、规则测试、在本机以 SOCKS5/HTTP 入站运行引擎 |
 | `AetherTestSupport` | 全部（仅测试） | swift-nio（回环测试服务） | 测试数据访问（`Fixtures`，定位 `Tests/Fixtures/`）、十六进制等测试工具；任何产品模块都不得依赖它 |
 
@@ -76,6 +76,7 @@ C 依赖：
 | --- | --- | --- |
 | `CHevSocks5Tunnel` | 二进制 target（xcframework），仅 Apple | 由 `Vendor/hev-socks5-tunnel` 子模块编译，见 [03 §6](03-project-setup.md#6-vendored-c-库) |
 | `CBlake3` | 源码 target | BLAKE3 官方 C 实现，供 Shadowsocks 2022 使用 |
+| `CAetherTunnel` | 源码 target，仅 Apple | 隧道的系统接口胶水：按内核 ABI 声明 `ctl_info` / `sockaddr_ctl` 并查找 utun 描述符、经 libresolv 读取系统 DNS 服务器（[06 §4.1](06-network-engine.md#41-获取-utun-描述符)） |
 
 ### 3.2 依赖方向
 

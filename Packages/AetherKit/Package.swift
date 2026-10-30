@@ -140,6 +140,8 @@ var products: [Product] = [
     targets += [
         // hev-socks5-tunnel 的 xcframework，由 Scripts/build-hev.sh 生成（docs/03 §6.1）。
         .binaryTarget(name: "CHevSocks5Tunnel", path: "Binaries/HevSocks5Tunnel.xcframework"),
+        // utun 描述符查找与 libresolv 的 C 胶水（docs/06 §4.1）。
+        .target(name: "CAetherTunnel", linkerSettings: [.linkedLibrary("resolv")]),
         .target(name: "AetherScript", dependencies: ["AetherScriptCore"]),
         .target(name: "AetherControl", dependencies: ["AetherFoundation", "AetherIPC"]),
         .target(
@@ -148,7 +150,7 @@ var products: [Product] = [
         ),
         .target(
             name: "AetherTunnelSupport",
-            dependencies: ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel"]
+            dependencies: ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel", "CAetherTunnel"]
         ),
 
         .testTarget(name: "AetherScriptTests", dependencies: ["AetherScript"]),

@@ -75,15 +75,35 @@ public struct NetworkSnapshot: Sendable, Equatable, Hashable {
     public var bssid: String?
     /// 网络环境修订号，每次变化加一（决策缓存键的一部分）。
     public var revision: Int
+    /// 是否有可用网络（`NWPath.status == .satisfied`）。
+    public var isSatisfied: Bool
+    public var supportsIPv4: Bool
+    public var supportsIPv6: Bool
+    /// 昂贵（蜂窝、个人热点）。
+    public var isExpensive: Bool
+    /// 受限（低数据模式）。
+    public var isConstrained: Bool
 
     public init(
         interfaceType: SubnetCondition.InterfaceType? = nil, ssid: String? = nil, bssid: String? = nil,
-        revision: Int = 0
+        revision: Int = 0, isSatisfied: Bool = true, supportsIPv4: Bool = true, supportsIPv6: Bool = false,
+        isExpensive: Bool = false, isConstrained: Bool = false
     ) {
         self.interfaceType = interfaceType
         self.ssid = ssid
         self.bssid = bssid
         self.revision = revision
+        self.isSatisfied = isSatisfied
+        self.supportsIPv4 = supportsIPv4
+        self.supportsIPv6 = supportsIPv6
+        self.isExpensive = isExpensive
+        self.isConstrained = isConstrained
+    }
+
+    /// 是否与 `other` 属于不同的网络环境（接口类型、SSID、IPv4 / IPv6 可用性之一变化，docs/06 §11）。
+    public func differsInEnvironment(from other: NetworkSnapshot) -> Bool {
+        interfaceType != other.interfaceType || ssid != other.ssid || supportsIPv4 != other.supportsIPv4
+            || supportsIPv6 != other.supportsIPv6
     }
 }
 

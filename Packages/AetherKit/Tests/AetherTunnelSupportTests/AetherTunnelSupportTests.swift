@@ -7,6 +7,6 @@ import Testing
     #expect(AetherTunnelSupportModule.dependencies.count == 2)
 }
 
-@Test func hevIsLinked() {
-    #expect(HevBridge.linkedEntryPointCount() == 3)
+@Test func hevStatisticsAreZeroBeforeStart() {
+    #expect(HevTunnel.statistics == HevTunnel.Statistics(txPackets: 0, txBytes: 0, rxPackets: 0, rxBytes: 0))
 }

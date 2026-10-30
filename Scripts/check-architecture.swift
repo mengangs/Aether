@@ -27,18 +27,19 @@ let allowedGraph: [String: [String]] = [
     "AetherScript": ["AetherScriptCore"],
     "AetherControl": ["AetherIPC"],
     "AetherKeychain": ["AetherFoundation", "AetherIPC"],
-    "AetherTunnelSupport": ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel"],
+    "AetherTunnelSupport": ["AetherEngine", "AetherKeychain", "CHevSocks5Tunnel", "CAetherTunnel"],
     "aether-cli": ["AetherEngine"],
     "aether-bench": ["AetherEngine"],
     "CBlake3": [],
     // 测试工具：只能被测试 target 依赖（任何产品模块都不允许依赖它）。
     "AetherTestSupport": [],
     "CHevSocks5Tunnel": [],
+    "CAetherTunnel": [],
 ]
 
 /// 只能在 Apple 平台编译的模块；其余模块都必须跨平台。
 let appleOnlyModules: Set<String> = [
-    "AetherScript", "AetherControl", "AetherKeychain", "AetherTunnelSupport", "CHevSocks5Tunnel",
+    "AetherScript", "AetherControl", "AetherKeychain", "AetherTunnelSupport", "CHevSocks5Tunnel", "CAetherTunnel",
 ]
 
 /// 跨平台模块不得 import 的框架。

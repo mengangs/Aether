@@ -76,7 +76,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 - `AetherEngine`：`FlowManager` 与胶水 Handler（M2-01）、内部 SOCKS5 入站（M2-03，认证成功即回复，以便嗅探首包）、HTTP 代理入站（M2-04，明文绝对形式请求由 `AetherHTTP` 中的最小 HTTP/1 转发实现，完整管线在 M5）、`Router` 与嗅探（M2-05）、`PolicyRegistry` 与运行配置热替换（M2-07；`url-test` / `fallback` / `load-balance` 在 M3-07 之前解析到第一个成员并在 `listPolicies` 中如实标注）、UDP 关联与 NAT 表（M2-08）、`aether-cli run`（13 §4）。
 - 运行包：配置库（`Profiles/index.json`）、模块库与运行包提交（11 §3.1、§6）放在 `AetherProfile`（只依赖 Foundation，路径由调用方传入），App 与引擎共用并可在 Linux 上测试；`runtime.json`、`selections.json`、`RequestRecord` 等跨进程模型放在 `AetherIPC`。
 - `AetherStore`（M2-12）：GRDB `DatabasePool`；迁移 `v1_initial` 一次建出 11 §4.1 的全部表（迁移只追加，后续里程碑直接使用）；M2 写 `traffic_daily` 与 `logbook`，并实现 11 §4.2 的清理。
-- `AetherTunnelSupport`（M2-09、M2-10）：完整网络设置、utun 描述符查找（`ctl_info` / `sockaddr_ctl` 按内核 ABI 在 Swift 中声明）与备用 socketpair 桥接、hev 配置与线程、`NWPathMonitor` 与 SSID、libresolv 系统 DNS、`RLIMIT_NOFILE`、内存压力源、Darwin 通知、状态快照。
+- `AetherTunnelSupport`（M2-09、M2-10）：完整网络设置、utun 描述符查找（`ctl_info` / `sockaddr_ctl` 按内核 ABI 在 C 目标 `CAetherTunnel` 中声明，与 06 §4.1 一致）与备用 socketpair 桥接、hev 配置与线程、`NWPathMonitor` 与 SSID、libresolv 系统 DNS、`RLIMIT_NOFILE`、内存压力源、Darwin 通知、状态快照。
 - App（M2-11）：五个标签的骨架；首页（连接、出站模式、流量、常用组）、策略页（select）、请求列表与基础详情、配置页（URL / 文件导入、提交运行包）、诊断页；每个页面带 `MockTunnelClient` 的 `#Preview`（含空状态与错误状态）。
 - 测试：集成测试在进程内启动引擎（NIOPosix），上游是测试里启动的本地 HTTP / SOCKS5 / HTTP CONNECT / DNS 服务，全部只用回环地址，不访问公网。
 - M2-13：V02–V12 写成 13 §6.1 的验收步骤，标"待验证"；hev 参数保持 06 §4.2 的初值，待真机压测（V10）后回填。
@@ -92,7 +92,7 @@ M0 中的其它约定：外部 Swift 包在首次使用它的任务中引入（M
 | [x] | M2-06 | 出站：DIRECT（Happy Eyeballs、NAT64 合成）、拒绝系列、HTTP / HTTPS、SOCKS5（含 UDP）、TLS 传输 | 06 §8 | 集成测试；拒绝策略行为测试 |
 | [x] | M2-07 | `select` 组与选择持久化；`PolicyRegistry`；运行配置装配与热替换 | 06 §9.1、§14 | 热替换不中断已有连接的测试 |
 | [x] | M2-08 | UDP 关联与 NAT 表；DNS 包分流 | 06 §10 | 集成测试 |
-| [ ] | M2-09 | `AetherTunnelSupport`：网络设置构建、utun 描述符查找与备用桥接、hev 桥接、路径监控、`RLIMIT_NOFILE` | 06 §3、§4、§11 | 网络设置构建的单元测试；真机 V07 |
+| [x] | M2-09 | `AetherTunnelSupport`：网络设置构建、utun 描述符查找与备用桥接、hev 桥接、路径监控、`RLIMIT_NOFILE` | 06 §3、§4、§11 | 网络设置构建的单元测试；真机 V07 |
 | [ ] | M2-10 | 隧道生命周期（启动、停止、重载、休眠唤醒）、状态快照、Darwin 通知、内存压力处理、IPC 分发器与 M2 命令 | 06 §2、10 §2–§3、02 §6 | completion 只调用一次的测试；真机 V02–V04 |
 | [ ] | M2-11 | App：配置导入（URL、文件）与提交运行包、首页、策略页（select）、请求列表与基础详情、诊断页 | 11 §6、12 §4–§6 | 每个页面有 mock 数据预览 |
 | [x] | M2-12 | 统计：计数、采样器、数据库（`traffic_daily`、`logbook`）与迁移 | 06 §12、11 §4 | 数据库迁移测试 |

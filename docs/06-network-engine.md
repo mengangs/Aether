@@ -127,15 +127,19 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 
 `ipv6 = false` 时 IPv6 路由仍进入隧道，但 DNS 不返回 AAAA（[07](07-dns.md)），所以只有直接使用 IPv6 字面量的流量会以 IPv6 到达引擎，按规则正常处理。
 
+实现（M2-09）：`TunnelNetworkSettingsSpec.make(from:)` 按上表生成（Linux 上可测）；`tun-included-routes` 只取其中的 IPv4 条目，`tun-excluded-routes` 的 IPv6 条目并入 IPv6 排除路由；`skip-proxy` 中不是 CIDR 的条目（域名、通配符）只进入系统代理的 `exceptionList`。`0.0.0.0/0` 与 `::/0` 转换为系统的默认路由对象。
+
 App 侧 `NETunnelProviderProtocol`：`providerBundleIdentifier` 取自 `AppEnvironment`，`serverAddress = "Aether"`，`disconnectOnSleep = false`，`includeAllNetworks = false`。按需连接规则见 [10 §4](10-control-ipc.md#4-隧道管理app-侧)。
 
 ## 4. TUN 接入（hev-socks5-tunnel）
 
 ### 4.1 获取 utun 描述符
 
-`setTunnelNetworkSettings` 完成后，遍历描述符 0…1024：对每个描述符 `getpeername`，地址族为 `AF_SYSTEM` 时用 `CTLIOCGINFO` 查询控制名 `com.apple.net.utun_control` 的 ID，`sc_id` 相等者即为 utun 描述符。相关结构与常量（`ctl_info`、`sockaddr_ctl`、`CTLIOCGINFO`、`AF_SYSTEM`）不在 iOS SDK 的公开头文件中，在 `AetherTunnelSupport` 的一个 C 头文件里按内核 ABI 自行声明。这是开源 VPN 客户端的通行做法，不调用私有 API。
+`setTunnelNetworkSettings` 完成后，遍历描述符 0…1024：对每个描述符 `getpeername`，地址族为 `AF_SYSTEM` 时用 `CTLIOCGINFO` 查询控制名 `com.apple.net.utun_control` 的 ID，`sc_id` 相等者即为 utun 描述符。相关结构与常量（`ctl_info`、`sockaddr_ctl`、`CTLIOCGINFO`、`AF_SYSTEM`）不在 iOS SDK 的公开头文件中，在 Apple 专有的 C 目标 `CAetherTunnel` 里按内核 ABI 自行声明（查找函数也在其中，`AetherTunnelSupport` 的 `UTun.findDescriptor()` 调用它）。这是开源 VPN 客户端的通行做法，不调用私有 API。
 
 找不到描述符时使用**备用桥接**：创建一对 `SOCK_DGRAM` 的 `socketpair`，一端交给 hev，另一端由 Swift 代码在 `packetFlow.readPackets` / `writePackets` 与 socket 之间搬运，按 utun 格式加上或去掉 4 字节地址族头。备用桥接有额外开销，启用时写日志簿警告。🔬 两条路径都要在真机上验证。
+
+实现（M2-09）：`PacketFlowBridge` 的两端 socket 缓冲各设为 4 MiB；从 socket 读时每次可读事件最多读 64 个包后批量 `writePackets`；写入 socket 失败（缓冲满）时丢弃该包并计数，不排队。utun 头的协议族固定为 Darwin 的值（`AF_INET` = 2、`AF_INET6` = 30，`UTunFraming`）。
 
 ### 4.2 hev 配置
 
@@ -166,6 +170,7 @@ misc:
 - 参数定值方法：在真机上以 200 / 500 / 1000 个并发 TCP 连接压测，记录 footprint 与吞吐，选使 hev 占用 ≤ 6 MiB 的组合，写回本节。
 - hev 运行在专用 `Thread` 上（栈 512 KiB）；`hev_socks5_tunnel_main_from_str` 返回即视为 hev 退出，非停止流程中的退出视为致命错误：记录日志簿并调用 `cancelTunnelWithError`。
 - 诊断页显示 `hev_socks5_tunnel_stats` 的收发包数与字节数。
+- 实现（M2-09）：`HevConfiguration` 生成上面的 YAML（字符串值单引号包裹）；`HevTunnel` 在专用线程上运行 hev，返回时回调退出码与"是否由 `stop()` 引起"，`stop()` 调用 `hev_socks5_tunnel_quit`。hev 是进程内单例，同一时刻只运行一个。
 
 ## 5. 入站
 
@@ -408,6 +413,7 @@ v1 不做协议层多路复用（如 mux、h2 连接池）。DoH / DoT 上游与
   5. 触发 `network-changed` 事件脚本（M6）；
   6. 写状态快照并发通知。
 - 已存在的流不主动断开；失效的连接由超时与错误自然回收。
+- 实现（M2-09）：`PathMonitor` 把 `NWPath` 转为 `NetworkSnapshot`（接口类型、SSID / BSSID、是否可用、IPv4 / IPv6 可用性、昂贵、受限），网络环境变化时修订号加一并回调；SSID 只在 iOS 上读取，读取失败为 nil。系统 DNS 服务器经 `CAetherTunnel` 调用 libresolv（`res_ninit` / `res_getservers`，最多 16 个）读取。上面第 1–6 步的执行在 M2-10 接入隧道生命周期。
 
 ## 12. 统计与请求记录
 
