@@ -183,7 +183,7 @@ struct ImportReviewView: View {
                         ForEach(Array(review.diagnostics.prefix(20).enumerated()), id: \.offset) { _, diagnostic in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(diagnostic.message).font(.footnote)
-                                Text("\(diagnostic.code.rawValue) · 第 \(diagnostic.line.map(String.init) ?? "—") 行")
+                                Text("\(diagnostic.code.rawValue) · 第 \(diagnostic.line.map { String($0) } ?? "—") 行")
                                     .font(.caption.monospaced())
                                     .foregroundStyle(diagnostic.severity == .error ? Color.red : Color.secondary)
                             }

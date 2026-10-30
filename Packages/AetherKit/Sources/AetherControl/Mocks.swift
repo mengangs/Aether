@@ -91,33 +91,34 @@ extension MockTunnelClient.Fixtures {
             traffic: TrafficSummary(
                 upBps: 12_400, downBps: 568_000, sessionUpBytes: 10_485_760, sessionDownBytes: 734_003_200),
             primaryGroups: [PolicyGroupSummary(name: "Proxy", current: "HK-01", latencyMs: nil)])
-        let policies = PolicyList(
-            groups: [
-                .init(
-                    name: "Proxy", type: "select", members: ["HK-01", "JP-01", "DIRECT"], selected: "HK-01",
-                    hidden: false, note: nil),
-                .init(
-                    name: "Auto", type: "url-test", members: ["HK-01", "JP-01"], selected: "HK-01", hidden: false,
-                    note: "url-test resolves to its first member until M3-07"),
-            ],
-            nodes: [
-                .init(name: "HK-01", type: "https", supportsUDP: false, available: true, unavailableReason: nil),
-                .init(name: "JP-01", type: "socks5", supportsUDP: true, available: true, unavailableReason: nil),
-                .init(
-                    name: "SG-01", type: "ss", supportsUDP: true, available: false,
-                    unavailableReason: "ss arrives in M3"),
-            ])
-        let samples = (0..<120).map { index in
-            TrafficReport.Sample(
-                at: base.addingTimeInterval(Double(index)), up: UInt64(8_000 + (index * 37) % 9_000),
-                down: UInt64(200_000 + (index * 7_919) % 600_000))
+        let groups: [PolicyList.Group] = [
+            PolicyList.Group(
+                name: "Proxy", type: "select", members: ["HK-01", "JP-01", "DIRECT"], selected: "HK-01", hidden: false,
+                note: nil),
+            PolicyList.Group(
+                name: "Auto", type: "url-test", members: ["HK-01", "JP-01"], selected: "HK-01", hidden: false,
+                note: "url-test resolves to its first member until M3-07"),
+        ]
+        let nodes: [PolicyList.Node] = [
+            PolicyList.Node(name: "HK-01", type: "https", supportsUDP: false, available: true, unavailableReason: nil),
+            PolicyList.Node(name: "JP-01", type: "socks5", supportsUDP: true, available: true, unavailableReason: nil),
+            PolicyList.Node(
+                name: "SG-01", type: "ss", supportsUDP: true, available: false, unavailableReason: "ss arrives in M3"),
+        ]
+        let policies = PolicyList(groups: groups, nodes: nodes)
+        var samples: [TrafficReport.Sample] = []
+        for index in 0..<120 {
+            let up: Int = 8_000 + (index * 37) % 9_000
+            let down: Int = 200_000 + (index * 7_919) % 600_000
+            let at: Date = base.addingTimeInterval(Double(index))
+            samples.append(TrafficReport.Sample(at: at, up: UInt64(up), down: UInt64(down)))
         }
+        let buckets: [TrafficReport.Bucket] = [
+            TrafficReport.Bucket(policy: "HK-01", interface: "wifi", up: 9_437_184, down: 700_000_000),
+            TrafficReport.Bucket(policy: "DIRECT", interface: "wifi", up: 1_048_576, down: 34_003_200),
+        ]
         let traffic = TrafficReport(
-            sessionUpBytes: 10_485_760, sessionDownBytes: 734_003_200,
-            buckets: [
-                .init(policy: "HK-01", interface: "wifi", up: 9_437_184, down: 700_000_000),
-                .init(policy: "DIRECT", interface: "wifi", up: 1_048_576, down: 34_003_200),
-            ], samples: samples)
+            sessionUpBytes: 10_485_760, sessionDownBytes: 734_003_200, buckets: buckets, samples: samples)
         var https = RequestRecord(
             id: 1, startedAt: base, inbound: .tun, transport: .tcp, destination: "198.18.0.12:443")
         https.host = "www.example.com"
@@ -151,8 +152,8 @@ extension MockTunnelClient.Fixtures {
         let memory = MemoryInfo(
             footprintBytes: 18_874_368, availableBytes: 31_457_280,
             components: ["tcpFlows": 42, "udpAssociations": 3, "activeRequests": 45, "finishedRequests": 500],
-            hev: HevStatisticsSummary(txPackets: 120_000, txBytes: 90_000_000, rxPackets: 180_000, rxBytes: 720_000_000)
-        )
+            hev: HevStatisticsSummary(
+                txPackets: 120_000, txBytes: 90_000_000, rxPackets: 180_000, rxBytes: 720_000_000))
         return Self(
             status: status, memory: memory, policies: policies, traffic: traffic, requests: [https, failed, udp])
     }
