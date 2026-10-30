@@ -16,6 +16,8 @@ public struct ProxyNode: Sendable {
     public var supportsUDP: Bool
     /// 节点身份：类型 + 服务器 + 端口 + 凭据哈希（测速结果按它迁移，docs/06 §14）。
     public var identity: String
+    /// 节点的 `block-quic`（`auto` / `on` / `off`）；为 nil 时用全局设置。
+    public var blockQUIC: String?
 }
 
 /// 策略组的运行时形态。
@@ -36,6 +38,11 @@ public enum RuntimePolicy: Sendable {
 
     public var isGroup: Bool {
         if case .group = self { return true }
+        return false
+    }
+
+    public var isReject: Bool {
+        if case .reject = self { return true }
         return false
     }
 }
@@ -136,7 +143,7 @@ public final class RuntimeConfiguration: Sendable {
             return .proxy(
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: nil, unavailableReason: "Unsupported proxy type",
-                    supportsUDP: false, identity: identity))
+                    supportsUDP: false, identity: identity, blockQUIC: spec.blockQUIC))
         }
         let server = ProxyServer(
             host: host, port: port,
@@ -149,20 +156,20 @@ public final class RuntimeConfiguration: Sendable {
             return .proxy(
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil, supportsUDP: false,
-                    identity: identity))
+                    identity: identity, blockQUIC: spec.blockQUIC))
         case .socks5(let username, let password):
             let connector = SOCKS5Connector(
                 name: spec.name, server: server, username: username, password: password, udpEnabled: spec.udpRelay)
             return .proxy(
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: connector, unavailableReason: nil,
-                    supportsUDP: spec.udpRelay, identity: identity))
+                    supportsUDP: spec.udpRelay, identity: identity, blockQUIC: spec.blockQUIC))
         default:
             notes.append("Proxy \(spec.name): \(spec.type) is supported from M3")
             return .proxy(
                 ProxyNode(
                     name: spec.name, type: spec.type, connector: nil, unavailableReason: "\(spec.type) arrives in M3",
-                    supportsUDP: false, identity: identity))
+                    supportsUDP: false, identity: identity, blockQUIC: spec.blockQUIC))
         }
     }
 

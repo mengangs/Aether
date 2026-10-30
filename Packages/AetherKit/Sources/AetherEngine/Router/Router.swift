@@ -3,6 +3,7 @@ import AetherFoundation
 import AetherHTTP
 import AetherIPC
 import AetherOutbound
+import AetherProfile
 import AetherRules
 import NIOCore
 import NIOHTTP1
@@ -549,21 +550,209 @@ public final class Router: InboundAcceptor, HTTPProxyDelegate, @unchecked Sendab
             serverResolver: serverResolver, logger: dependencies.logger)
     }
 
-    // MARK: - UDP
+    // MARK: - UDP（docs/06 §10）
+
+    /// 同时存在的 UDP 关联上限（docs/06 §13）；超出时新关联立即关闭（`NET-040`，写日志）。
+    public var udpAssociationLimit = 512
+    private var udpSessions: [ObjectIdentifier: UDPSession] = [:]
+
+    /// 当前的 UDP 关联数。
+    public var udpAssociationCount: Int { udpSessions.count }
 
     public func acceptUDP(_ association: SOCKS5UDPAssociation) {
+        acceptUDP(client: association)
+    }
+
+    /// 接管一个入站 UDP 关联：建立它的 NAT 表（`UDPSession`）。
+    func acceptUDP(client: any InboundUDPClient, settings: UDPSession.Settings? = nil) {
         eventLoop.preconditionInEventLoop()
-        // M2-08 实现完整的 UDP 关联与 NAT 表；此前只转发 DNS 数据报，其余丢弃。
-        let configuration = self.configuration
+        guard udpSessions.count < udpAssociationLimit else {
+            dependencies.logger.warning(
+                "\(NetworkError(.netTooManyFlows, "UDP association limit \(udpAssociationLimit) reached"))")
+            client.close()
+            return
+        }
+        var resolvedSettings = settings ?? UDPSession.Settings()
+        if settings == nil {
+            resolvedSettings.flowIdle = dependencies.timeouts.udpIdle
+            resolvedSettings.idle = dependencies.timeouts.udpIdle
+            resolvedSettings.dnsIdle = dependencies.timeouts.dnsUDPIdle
+        }
         let dns = self.dns
-        association.onDatagram = { [weak association] destination, payload in
-            guard let association, case .ip(let address, let port) = destination,
-                configuration.isDNSTarget(address, port: port)
-            else { return }
-            dns.answer(Array(payload.readableBytesView), transport: .udp).whenSuccess { response in
-                guard let response else { return }
-                association.send(ByteBuffer(bytes: response), from: destination)
+        let hooks = UDPSession.Hooks(
+            isDNSTarget: { [unowned self] destination in
+                guard case .ip(let address, let port) = destination else { return false }
+                return self.configuration.isDNSTarget(address, port: port)
+            },
+            answerDNS: { payload in
+                dns.answer(Array(payload.readableBytesView), transport: .udp).map { $0.map { ByteBuffer(bytes: $0) } }
+            },
+            route: { [unowned self] destination, payload, id in
+                self.routeUDP(destination, firstPayload: payload, id: id, configuration: self.configuration)
+            },
+            allocateID: { [unowned self] in self.flows.allocateID() },
+            onTraffic: onTraffic)
+        let session = UDPSession(
+            client: client, eventLoop: eventLoop, requests: requests, settings: resolvedSettings, hooks: hooks)
+        let key = ObjectIdentifier(session)
+        udpSessions[key] = session
+        session.onClosed = { [weak self] in
+            self?.udpSessions[key] = nil
+        }
+        session.start()
+    }
+
+    /// 关闭全部 UDP 关联（停止隧道）。
+    public func closeUDPAssociations() {
+        eventLoop.preconditionInEventLoop()
+        for session in Array(udpSessions.values) {
+            session.close()
+        }
+    }
+
+    /// 一个 UDP 流的路由（docs/06 §6 第 1、3–6 步与 §10）：主机名恢复、出站模式与规则、策略解析、前置检查
+    /// （block-quic、`udp-policy-not-supported-behaviour`、拒绝），得到丢弃或转发。
+    func routeUDP(
+        _ destination: Destination, firstPayload: ByteBuffer, id: FlowID, configuration: RuntimeConfiguration
+    ) -> EventLoopFuture<UDPRoute> {
+        var context = RouteContext(
+            destinationPort: destination.port, transport: .udp, inbound: .tun, inboundPort: nil,
+            network: dependencies.network())
+        var originalIP: IPAddress?
+        switch destination {
+        case .domain(let host, _):
+            context.host = host
+            context.hostSource = .request
+        case .ip(let address, _):
+            if dns.isFakeIP(address) {
+                guard let domain = dns.domain(forFakeIP: address), let host = Hostname(domain) else {
+                    return eventLoop.makeSucceededFuture(
+                        .drop(NetworkError(.netUnknownFakeIP, "No mapping for \(address)")))
+                }
+                context.host = host
+                context.hostSource = .fakeIP
+            } else {
+                originalIP = address
+                context.destinationIP = address
+                if let domain = dns.domain(forRealIP: address), let host = Hostname(domain) {
+                    context.host = host
+                    context.hostSource = .dnsReverse
+                }
             }
+        }
+        if destination.port == 443, Sniffer.isQUICLongHeader(firstPayload) {
+            context.appProtocol = .quic
+        }
+        requests.update(id) {
+            $0.host = context.host?.value
+            $0.hostSource = Self.recordHostSource(context.hostSource)
+            $0.appProtocol = Self.recordAppProtocol(context.appProtocol)
+        }
+        return decide(context, configuration: configuration).hop(to: eventLoop).assumeIsolated().flatMap {
+            decision -> EventLoopFuture<UDPRoute> in
+            self.record(decision, id: id)
+            return self.udpRoute(
+                decision, id: id, originalIP: originalIP, configuration: configuration)
+        }.nonisolated()
+    }
+
+    /// 第 6 步（前置检查）与出站目标。
+    private func udpRoute(
+        _ decision: RouteDecision, id: FlowID, originalIP: IPAddress?, configuration: RuntimeConfiguration
+    ) -> EventLoopFuture<UDPRoute> {
+        let context = decision.context
+        let port = context.destinationPort
+        let terminalName = decision.resolution.chain.last ?? "DIRECT"
+        var node: ProxyNode?
+        if case .proxy(let proxy) = decision.resolution.terminal {
+            node = proxy
+        }
+        let supportsUDP: Bool
+        switch decision.resolution.terminal {
+        case .direct: supportsUDP = true
+        case .proxy(let proxy): supportsUDP = proxy.connector != nil && proxy.supportsUDP
+        case .reject, .group: supportsUDP = false
+        }
+        // block-quic：节点的设置优先于全局设置（docs/04）。
+        if port == 443, !decision.resolution.terminal.isReject {
+            let mode = Self.blockQUICMode(node: node, general: configuration.general.blockQUIC)
+            if mode == .always || (mode == .auto && !supportsUDP) {
+                requests.update(id) { $0.addNote("block-quic") }
+                return eventLoop.makeSucceededFuture(.drop(NetworkError(.netRejected, "QUIC blocked")))
+            }
+        }
+        switch decision.resolution.terminal {
+        case .reject(let kind):
+            requests.update(id) { $0.addNote(kind.rawValue) }
+            return eventLoop.makeSucceededFuture(.drop(NetworkError(.netRejected, "Rejected by \(kind.rawValue)")))
+        case .group:
+            return eventLoop.makeSucceededFuture(.drop(NetworkError(.netPolicyUnavailable, "Unresolved group")))
+        case .direct:
+            return directUDPRoute(context: context, originalIP: originalIP, policy: terminalName, id: id)
+        case .proxy(let proxy):
+            guard let connector = proxy.connector else {
+                return eventLoop.makeSucceededFuture(
+                    .drop(NetworkError(.netPolicyUnavailable, proxy.unavailableReason ?? "Unavailable policy")))
+            }
+            guard proxy.supportsUDP else {
+                if configuration.general.udpPolicyNotSupportedBehaviour.uppercased() == "DIRECT" {
+                    requests.update(id) { $0.addNote("\(proxy.name) does not relay UDP; using DIRECT") }
+                    return directUDPRoute(context: context, originalIP: originalIP, policy: "DIRECT", id: id)
+                }
+                return eventLoop.makeSucceededFuture(
+                    .drop(NetworkError(.netPolicyNoUDP, "\(proxy.name) does not relay UDP")))
+            }
+            let target: Destination
+            if let host = context.host {
+                target = .domain(host, port: port)
+            } else if let ip = context.destinationIP {
+                target = .ip(ip, port: port)
+            } else {
+                return eventLoop.makeSucceededFuture(.drop(NetworkError(.netUnreachable, "No destination")))
+            }
+            let dialContext = self.dialContext(for: id)
+            return eventLoop.makeSucceededFuture(
+                .forward(
+                    key: "proxy|\(proxy.identity)", policy: terminalName, target: target,
+                    open: { connector.openUDP(context: dialContext) }))
+        }
+    }
+
+    /// DIRECT：原始目标是真实 IP 时直接发往它；否则在本地按域名解析（遵守 `[Host]`），发往首个 IPv4（没有则
+    /// IPv6），使回包能按地址准确归属。
+    private func directUDPRoute(context: RouteContext, originalIP: IPAddress?, policy: String, id: FlowID)
+        -> EventLoopFuture<UDPRoute>
+    {
+        let port = context.destinationPort
+        let direct = self.direct
+        let dialContext = self.dialContext(for: id)
+        let route: @Sendable (IPAddress) -> UDPRoute = { address in
+            .forward(
+                key: "direct", policy: policy, target: .ip(address, port: port),
+                open: { direct.openUDP(context: dialContext) })
+        }
+        if let originalIP {
+            return eventLoop.makeSucceededFuture(route(originalIP))
+        }
+        guard let host = context.host else {
+            return eventLoop.makeSucceededFuture(.drop(NetworkError(.netUnreachable, "No destination")))
+        }
+        return dns.resolveAll(host.value, purpose: .direct).map { addresses -> UDPRoute in
+            guard let address = RuleProgram.preferredAddress(addresses) else {
+                return .drop(NetworkError(.netResolutionFailed, "No address for \(host.value)"))
+            }
+            return route(address)
+        }.recover { error in
+            .drop(NetworkError(.netResolutionFailed, "\(host.value): \(error)"))
+        }
+    }
+
+    static func blockQUICMode(node: ProxyNode?, general: GeneralSettings.BlockQUIC) -> GeneralSettings.BlockQUIC {
+        switch node?.blockQUIC {
+        case "on": return .always
+        case "off": return .never
+        case "auto": return .auto
+        default: return general
         }
     }
 

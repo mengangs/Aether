@@ -20,6 +20,15 @@ public enum Sniffer {
     /// 服务器先发数据的协议：跳过嗅探，避免引入 300 ms 等待。
     public static let skippedPorts: Set<UInt16> = [21, 22, 23, 25, 110, 143, 587, 3306, 5432, 6379]
 
+    /// QUIC 长包头（docs/06 §7，M2 只按特征判定）：首字节高两位为 1（长包头 + 固定位），版本号非 0
+    /// （版本 0 是版本协商包）。
+    public static func isQUICLongHeader(_ payload: ByteBuffer) -> Bool {
+        guard let first = payload.getInteger(at: payload.readerIndex, as: UInt8.self), first & 0xC0 == 0xC0,
+            let version = payload.getInteger(at: payload.readerIndex + 1, as: UInt32.self)
+        else { return false }
+        return version != 0
+    }
+
     public static func sniff(_ bytes: [UInt8]) -> SniffResult {
         guard let first = bytes.first else { return .needMoreData }
         if first == 0x16 {

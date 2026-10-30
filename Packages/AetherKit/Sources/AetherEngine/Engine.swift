@@ -169,7 +169,8 @@ public final class Engine: Sendable {
         options.persistSelections?(policies.currentSelections)
     }
 
-    /// 停止（docs/06 §2.3 第 1、3、5 步）：停止接受新连接，半关闭全部流并在宽限期后强制关闭，关闭执行环境。
+    /// 停止（docs/06 §2.3 第 1、3、5 步）：停止接受新连接，关闭 UDP 关联，半关闭全部 TCP 流并在宽限期后强制关闭，
+    /// 关闭执行环境。
     public func stop() async {
         try? await socks.close().get()
         if let inbound = takeHTTPProxy() {
@@ -177,7 +178,10 @@ public final class Engine: Sendable {
         }
         let router = self.router
         let grace = options.timeouts.stopGrace
-        _ = try? await eventLoop.flatSubmit { router.dependencies.flows.closeAll(grace: grace) }.get()
+        _ = try? await eventLoop.flatSubmit {
+            router.closeUDPAssociations()
+            return router.dependencies.flows.closeAll(grace: grace)
+        }.get()
         try? await threads.shutdown()
     }
 }
