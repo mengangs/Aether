@@ -1,0 +1,41 @@
+# 互通测试（docs/13 §3）：固定版本的真实服务端 × 各协议与传输组合，结果写入作业摘要。
+# 与本地相同，由 Scripts/interop/run.sh 下载并校验服务端、生成证书、启动服务端并运行 AetherInteropTests。
+name: interop
+
+on:
+  schedule:
+    - cron: "17 19 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "Packages/AetherKit/Sources/AetherOutbound/**"
+      - "Packages/AetherKit/Sources/AetherTestSupport/**"
+      - "Packages/AetherKit/Tests/AetherInteropTests/**"
+      - "Scripts/interop/**"
+      - ".github/workflows/interop.yml"
+
+concurrency:
+  group: interop-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  interop:
+    name: Interop · Linux
+    runs-on: ubuntu-latest
+    container: swift:6.4-noble
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tools and system libraries
+        # simple-obfs 提供 obfs-server（仅测试用，不随产品分发）；GRDB 需要系统 SQLite（docs/03 §5.2）。
+        run: >
+          apt-get update -qq && apt-get install -y -qq
+          libsqlite3-dev curl unzip xz-utils openssl simple-obfs > /dev/null
+
+      - name: Interop
+        run: Scripts/interop/run.sh

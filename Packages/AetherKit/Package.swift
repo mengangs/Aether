@@ -90,6 +90,16 @@ var targets: [Target] = [
             .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
         ]
     ),
+    // 互通测试（docs/13 §3）：由 Scripts/interop/run.sh 启动真实服务端后运行，否则整体跳过。
+    .testTarget(
+        name: "AetherInteropTests",
+        dependencies: [
+            "AetherFoundation", "AetherOutbound", "AetherTestSupport", .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+            .product(name: "Crypto", package: "swift-crypto"),
+        ]
+    ),
     .testTarget(
         name: "AetherOutboundTests",
         dependencies: [

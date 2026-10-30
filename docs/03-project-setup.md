@@ -39,7 +39,7 @@ Aether/
 │   ├── build-hev.sh                 # 编译 HevSocks5Tunnel.xcframework
 │   ├── write-ci-xcconfig.sh         # 由环境变量生成 Config/CI.xcconfig
 │   ├── check-architecture.swift     # 架构约束检查（§9）
-│   └── interop/                     # 互通测试的 docker compose 与服务端配置
+│   └── interop/                     # 互通测试：服务端版本与校验和、下载与证书脚本、服务端配置、run.sh
 ├── docs/
 ├── examples/
 ├── .github/workflows/
@@ -313,7 +313,7 @@ echo "Aether.xcodeproj generated."
 | 工作流 | 运行环境 | 触发 | 内容 |
 | --- | --- | --- | --- |
 | `core.yml` | `ubuntu-latest` + Swift 6.x 官方容器 | push 到 main | `swift format lint --recursive`；`swift build`；`swift test --parallel`（跨平台模块） |
-| `interop.yml` | `ubuntu-latest` + Docker | 每日定时、手动；push 到 main 且改动涉及 `AetherOutbound` 或 `Scripts/interop/` | 启动 `Scripts/interop/` 中的测试服务端；运行 `swift test --filter Interop` |
+| `interop.yml` | `ubuntu-latest` + Swift 6.x 官方容器 | 每日定时、手动；push 到 main 且改动涉及 `AetherOutbound`、`AetherTestSupport`、`AetherInteropTests` 或 `Scripts/interop/` | `Scripts/interop/run.sh`：下载并校验固定版本的服务端、生成证书、启动服务端，运行 `AetherInteropTests`（13 §3），结果写入作业摘要 |
 | `ios.yml` | `xcode-27`（备选 `macos-26`） | push 到 main | 恢复或构建 hev 缓存；`bootstrap.sh`；在 macOS 上 `swift test`（含 Apple 专有模块）；`xcodebuild build -scheme Aether -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` |
 | `release.yml` | `xcode-27` | 推送 `v*` tag、手动（`workflow_dispatch`） | 未签名 ipa 与附带文件，见 §8.3–§8.4 |
 

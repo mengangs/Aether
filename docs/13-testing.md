@@ -25,17 +25,18 @@
 
 ### 3.1 服务端
 
-`Scripts/interop/docker-compose.yml` 定义（镜像固定版本号，仅在 CI 中使用，不随产品分发）：
+服务端是固定版本的官方 Release 二进制，版本、下载地址与 SHA-256 记录在 `Scripts/interop/servers.env`，由 `fetch-servers.sh` 下载并校验（只在测试中使用，不随产品分发）。开发会话的容器仓库拉取被拒而 GitHub Release 可以下载，因此不用容器镜像；本地与 CI 都在 `swift:6.x-noble` 容器中运行 `Scripts/interop/run.sh`，行为一致。
 
-| 服务 | 用途 |
-| --- | --- |
-| shadowsocks-rust（`ssserver`） | SS AEAD 三种方法、SS 2022（AES 变体），TCP 与 UDP；simple-obfs 插件 |
-| Xray-core | VMess（TCP、WS、WS+TLS）、VLESS（TLS、WS+TLS）、Trojan（TLS、WS+TLS）、SOCKS5（含 UDP）、HTTP 代理 |
-| nginx | HTTP / HTTPS 源站：固定内容、大文件、gzip、分块、慢速响应、WebSocket 回显 |
-| UDP 回显服务 | UDP 转发验证 |
-| 测试 DNS 服务（如 CoreDNS） | UDP / TCP DNS、DoT、DoH 上游 |
+| 服务 | 来源 | 用途 |
+| --- | --- | --- |
+| shadowsocks-rust（`ssserver`） | Release 二进制 | SS AEAD 三种方法、SS 2022（AES 变体），TCP 与 UDP |
+| simple-obfs（`obfs-server`） | Ubuntu 软件源的 `simple-obfs` 包，作为 `ssserver` 的插件 | simple-obfs http / tls；PATH 中没有时这些用例跳过并在摘要中注明 |
+| Xray-core | Release 二进制，配置 `Scripts/interop/xray.json` | VMess（TCP、WS、WS+TLS）、VLESS（TLS、WS+TLS）、Trojan（TLS、WS+TLS）、SOCKS5 / SOCKS5-TLS（含 UDP）、HTTP / HTTPS 代理 |
+| HTTP 源站 | 测试进程在回环地址上启动（`AetherTestSupport.HTTPTestOrigin`） | 固定内容、任意大小的确定内容、`generate_204`、中途断开 |
+| UDP 回显与 DNS 应答 | 测试进程在回环地址上启动 | UDP 转发验证 |
+| DoH / DoT 上游 | M3-11 的测试在进程内启动 | DNS 上游 |
 
-证书由 `Scripts/interop/gen-certs.sh` 生成测试 CA 与服务端证书，测试中把该 CA 作为信任根。
+端口与测试凭据在 `Scripts/interop/ports.env`。证书由 `Scripts/interop/gen-certs.sh` 每次运行时重新生成（测试 CA 与 `interop.example.com` / `127.0.0.1` 的服务端证书，私钥不入库），测试中把该 CA 作为信任根。测试目标 `AetherInteropTests` 只使用公开 API；没有 `AETHER_INTEROP=1` 时整体跳过，因此普通的 `swift test` 不受影响。
 
 ### 3.2 用例
 
@@ -49,7 +50,7 @@
 6. UDP（支持时）：DNS 查询与 1,000 个回显包，丢包率与顺序记录；
 7. 测速请求（`generate_204` 由 nginx 模拟）结果合理。
 
-结果写入 CI 摘要表格；某组合连续两次失败即视为回归。
+结果写入 CI 摘要表格（每个组合一行：各用例的结论、64 MiB 吞吐、UDP 丢包率与乱序次数、测速耗时）；任一用例失败即工作流失败，某组合连续两次失败即视为回归。错误凭据用例的通过条件是拿不到源站内容：连接失败（如 `NET-031`）、被关闭，或服务端按防探测策略保持沉默直到超时（shadowsocks-rust 即如此）。服务端中途断开用例的通过条件是连接结束且正文未收全，不挂起。
 
 ## 4. 引擎集成测试
 
