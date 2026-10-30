@@ -14,6 +14,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         core.stop(reason: reason, completionHandler: completionHandler)
     }
 
+    override func sleep(completionHandler: @escaping () -> Void) {
+        core.sleep(completionHandler: completionHandler)
+    }
+
+    override func wake() {
+        core.wake()
+    }
+
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)? = nil) {
         core.handleAppMessage(messageData, completionHandler: completionHandler)
     }

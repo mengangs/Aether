@@ -16,11 +16,29 @@ public enum IPCProtocol {
 /// IPC 命令（docs/10 §2.2）。Codable 编码为 `{"type": "...", "params": {...}}`；随里程碑增加。
 public enum IPCCommand: Sendable, Equatable {
     case getStatus
+    case getMemoryInfo
+    /// App 提交运行包后请求重载；`expectedRevision` 与 `active.json` 不一致时返回 `IPC-012`。
+    case reloadProfile(expectedRevision: String?)
+    case setOutboundMode(OutboundMode)
+    case setGlobalPolicy(String)
+    case listPolicies
+    case selectPolicy(group: String, policy: String)
+    case getTraffic
+    /// `limit` 超过 `IPCProtocol.maxPageSize` 时按上限处理。
+    case getRequests(kind: RequestListKind, sinceID: UInt64?, limit: Int)
 
     /// 命令名，即编码中的 `type`。
     public var name: String {
         switch self {
         case .getStatus: return "getStatus"
+        case .getMemoryInfo: return "getMemoryInfo"
+        case .reloadProfile: return "reloadProfile"
+        case .setOutboundMode: return "setOutboundMode"
+        case .setGlobalPolicy: return "setGlobalPolicy"
+        case .listPolicies: return "listPolicies"
+        case .selectPolicy: return "selectPolicy"
+        case .getTraffic: return "getTraffic"
+        case .getRequests: return "getRequests"
         }
     }
 }
@@ -31,12 +49,51 @@ extension IPCCommand: Codable {
         case params
     }
 
+    private struct ReloadParams: Codable {
+        var expectedRevision: String?
+    }
+
+    private struct ModeParams: Codable {
+        var mode: OutboundMode
+    }
+
+    private struct PolicyParams: Codable {
+        var policy: String
+    }
+
+    private struct SelectParams: Codable {
+        var group: String
+        var policy: String
+    }
+
+    private struct RequestsParams: Codable {
+        var kind: RequestListKind
+        var sinceID: UInt64?
+        var limit: Int
+    }
+
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
+        func params<T: Decodable>(_ type: T.Type) throws -> T {
+            try container.decode(type, forKey: .params)
+        }
         switch type {
-        case "getStatus":
-            self = .getStatus
+        case "getStatus": self = .getStatus
+        case "getMemoryInfo": self = .getMemoryInfo
+        case "reloadProfile":
+            self = .reloadProfile(
+                expectedRevision: try container.decodeIfPresent(ReloadParams.self, forKey: .params)?.expectedRevision)
+        case "setOutboundMode": self = .setOutboundMode(try params(ModeParams.self).mode)
+        case "setGlobalPolicy": self = .setGlobalPolicy(try params(PolicyParams.self).policy)
+        case "listPolicies": self = .listPolicies
+        case "selectPolicy":
+            let value = try params(SelectParams.self)
+            self = .selectPolicy(group: value.group, policy: value.policy)
+        case "getTraffic": self = .getTraffic
+        case "getRequests":
+            let value = try params(RequestsParams.self)
+            self = .getRequests(kind: value.kind, sinceID: value.sinceID, limit: value.limit)
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown command \(type)")
@@ -47,8 +104,18 @@ extension IPCCommand: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(name, forKey: .type)
         switch self {
-        case .getStatus:
+        case .getStatus, .getMemoryInfo, .listPolicies, .getTraffic:
             break
+        case .reloadProfile(let expectedRevision):
+            try container.encode(ReloadParams(expectedRevision: expectedRevision), forKey: .params)
+        case .setOutboundMode(let mode):
+            try container.encode(ModeParams(mode: mode), forKey: .params)
+        case .setGlobalPolicy(let policy):
+            try container.encode(PolicyParams(policy: policy), forKey: .params)
+        case .selectPolicy(let group, let policy):
+            try container.encode(SelectParams(group: group, policy: policy), forKey: .params)
+        case .getRequests(let kind, let sinceID, let limit):
+            try container.encode(RequestsParams(kind: kind, sinceID: sinceID, limit: limit), forKey: .params)
         }
     }
 }
@@ -123,6 +190,11 @@ public enum IPCPayload: Sendable, Equatable {
     /// 无返回值的命令。
     case empty
     case status(TunnelStatus)
+    case memoryInfo(MemoryInfo)
+    case reload(ReloadResult)
+    case policies(PolicyList)
+    case traffic(TrafficReport)
+    case requests(RequestPage)
 }
 
 extension IPCPayload: Codable {
@@ -134,11 +206,17 @@ extension IPCPayload: Codable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
+        func value<T: Decodable>(_ type: T.Type) throws -> T {
+            try container.decode(type, forKey: .value)
+        }
         switch type {
-        case "empty":
-            self = .empty
-        case "status":
-            self = .status(try container.decode(TunnelStatus.self, forKey: .value))
+        case "empty": self = .empty
+        case "status": self = .status(try value(TunnelStatus.self))
+        case "memoryInfo": self = .memoryInfo(try value(MemoryInfo.self))
+        case "reload": self = .reload(try value(ReloadResult.self))
+        case "policies": self = .policies(try value(PolicyList.self))
+        case "traffic": self = .traffic(try value(TrafficReport.self))
+        case "requests": self = .requests(try value(RequestPage.self))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type, in: container, debugDescription: "Unknown payload \(type)")
@@ -153,6 +231,21 @@ extension IPCPayload: Codable {
         case .status(let status):
             try container.encode("status", forKey: .type)
             try container.encode(status, forKey: .value)
+        case .memoryInfo(let info):
+            try container.encode("memoryInfo", forKey: .type)
+            try container.encode(info, forKey: .value)
+        case .reload(let result):
+            try container.encode("reload", forKey: .type)
+            try container.encode(result, forKey: .value)
+        case .policies(let list):
+            try container.encode("policies", forKey: .type)
+            try container.encode(list, forKey: .value)
+        case .traffic(let report):
+            try container.encode("traffic", forKey: .type)
+            try container.encode(report, forKey: .value)
+        case .requests(let page):
+            try container.encode("requests", forKey: .type)
+            try container.encode(page, forKey: .value)
         }
     }
 }

@@ -87,15 +87,15 @@ struct StorageTests {
         let database = try AetherDatabase.inMemory()
         let writer = LogbookWriter(database: database, capacity: 3)
         for index in 0..<5 {
-            await writer.add(
+            writer.add(
                 LogbookEntry(
                     at: now.addingTimeInterval(Double(index)), level: index == 4 ? .error : .info,
                     category: .tunnel, code: index == 4 ? "NET-050" : nil, message: "event \(index)"))
         }
-        #expect(await writer.droppedEntries == 2)
-        #expect(await writer.pendingCount == 3)
-        await writer.flush()
-        #expect(await writer.pendingCount == 0)
+        #expect(writer.droppedEntries == 2)
+        #expect(writer.pendingCount == 3)
+        #expect(await writer.flush() == 3)
+        #expect(writer.pendingCount == 0)
         let entries = try await database.recentLogbook()
         #expect(entries.map(\.message) == ["event 4", "event 3", "event 2"])
         #expect(entries.first?.level == .error && entries.first?.code == "NET-050")

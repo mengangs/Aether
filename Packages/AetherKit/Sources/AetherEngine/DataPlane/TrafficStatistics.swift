@@ -1,4 +1,5 @@
 import AetherFoundation
+import AetherIPC
 import AetherRules
 import AetherStore
 import Foundation
@@ -41,6 +42,13 @@ public final class TrafficStatistics: @unchecked Sendable {
     private var sampledUp: UInt64 = 0
     private var sampledDown: UInt64 = 0
     private var pending: [Key: (up: UInt64, down: UInt64)] = [:]
+    /// 会话内按（最终节点、接口类型）的总量，同样最多 `keyLimit` 个键。
+    private var session: [SessionKey: (up: UInt64, down: UInt64)] = [:]
+
+    private struct SessionKey: Hashable {
+        var policy: String
+        var interface: String
+    }
     private var sampler: RepeatedTask?
     private var flusher: RepeatedTask?
 
@@ -76,6 +84,19 @@ public final class TrafficStatistics: @unchecked Sendable {
         }
         let current = pending[key] ?? (0, 0)
         pending[key] = (current.up &+ up, current.down &+ down)
+        var sessionKey = SessionKey(policy: policy, interface: key.interface)
+        if session[sessionKey] == nil, session.count >= Self.keyLimit {
+            sessionKey.policy = Self.overflowPolicy
+        }
+        let total = session[sessionKey] ?? (0, 0)
+        session[sessionKey] = (total.up &+ up, total.down &+ down)
+    }
+
+    /// 会话内按（最终节点、接口类型）的总量，按节点、接口排序（`getTraffic`）。
+    public var sessionBuckets: [TrafficReport.Bucket] {
+        session.map { key, value in
+            TrafficReport.Bucket(policy: key.policy, interface: key.interface, up: value.up, down: value.down)
+        }.sorted { ($0.policy, $0.interface) < ($1.policy, $1.interface) }
     }
 
     static func interfaceName(_ type: SubnetCondition.InterfaceType?) -> String {

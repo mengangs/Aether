@@ -12,6 +12,8 @@ struct IPCDispatcherTests {
         switch command {
         case .getStatus:
             return .status(IPCDispatcherTests.status)
+        default:
+            throw IPCError(code: .ipcInvalidArgument, message: "unsupported in this test")
         }
     }
 

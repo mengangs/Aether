@@ -32,6 +32,15 @@ public final class PathMonitor: @unchecked Sendable {
         monitor.cancel()
     }
 
+    /// 唤醒后网络修订号加一并回调（docs/06 §2.5）。
+    public func bumpRevision() {
+        let next = state.withLock { current -> NetworkSnapshot in
+            current.revision += 1
+            return current
+        }
+        changeHandler?(next)
+    }
+
     private func update(_ path: NWPath) {
         let interface: SubnetCondition.InterfaceType? =
             if path.usesInterfaceType(.wifi) {

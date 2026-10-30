@@ -73,6 +73,60 @@ public actor IPCClient {
         return status
     }
 
+    /// `getMemoryInfo`。
+    public func memoryInfo() async throws -> MemoryInfo {
+        guard case .memoryInfo(let info) = try await send(.getMemoryInfo) else { throw unexpected("getMemoryInfo") }
+        return info
+    }
+
+    /// `reloadProfile`。
+    public func reloadProfile(expectedRevision: String?) async throws -> ReloadResult {
+        guard case .reload(let result) = try await send(.reloadProfile(expectedRevision: expectedRevision)) else {
+            throw unexpected("reloadProfile")
+        }
+        return result
+    }
+
+    /// `setOutboundMode`。
+    public func setOutboundMode(_ mode: OutboundMode) async throws {
+        _ = try await send(.setOutboundMode(mode))
+    }
+
+    /// `setGlobalPolicy`。
+    public func setGlobalPolicy(_ policy: String) async throws {
+        _ = try await send(.setGlobalPolicy(policy))
+    }
+
+    /// `listPolicies`。
+    public func policies() async throws -> PolicyList {
+        guard case .policies(let list) = try await send(.listPolicies) else { throw unexpected("listPolicies") }
+        return list
+    }
+
+    /// `selectPolicy`。
+    public func selectPolicy(group: String, policy: String) async throws {
+        _ = try await send(.selectPolicy(group: group, policy: policy))
+    }
+
+    /// `getTraffic`。
+    public func traffic() async throws -> TrafficReport {
+        guard case .traffic(let report) = try await send(.getTraffic) else { throw unexpected("getTraffic") }
+        return report
+    }
+
+    /// `getRequests`。
+    public func requests(kind: RequestListKind, sinceID: UInt64? = nil, limit: Int = IPCProtocol.maxPageSize)
+        async throws -> RequestPage
+    {
+        guard case .requests(let page) = try await send(.getRequests(kind: kind, sinceID: sinceID, limit: limit))
+        else { throw unexpected("getRequests") }
+        return page
+    }
+
+    private func unexpected(_ command: String) -> IPCError {
+        IPCError(code: .ipcUndecodable, message: "\(command) returned an unexpected payload")
+    }
+
     private func sendWithTimeout(_ data: Data) async throws -> Data? {
         let transport = self.transport
         let timeout = self.timeout

@@ -81,6 +81,8 @@ public struct IPCError: Error, Codable, Sendable {
 
 隧道未运行时，`TunnelClient` 直接抛出 `IPC-001`，界面据此显示"未连接"状态，不弹错误。
 
+实现（M2-10）：M2 的命令由 `TunnelRuntime.handle` 处理，负载类型为 `status`、`memoryInfo`、`reload`、`policies`、`traffic`、`requests`（`empty` 表示无返回值），类型定义在 `AetherIPC`，`IPCClient` 提供对应的类型安全方法。`reloadProfile` 的 `expectedRevision` 与当前运行包不一致时返回 `IPC-012`；配置有 error 级诊断时返回 `ReloadResult`（`errorCount > 0`，诊断最多 50 条）而不是错误。`getRequests` 的 `limit` 截到 1…200。隧道不处于 `running` / `reasserting` 时，除 `getStatus`、`getMemoryInfo` 外的命令返回 `IPC-012`；没有运行时（扩展未启动隧道）时返回 `IPC-001`。`getMemoryInfo` 的 `components` 在 M2 给出 `tcpFlows`、`udpAssociations`、`activeRequests`、`finishedRequests`（条目数）。
+
 ### 2.3 IPC 错误码
 
 | 码 | 含义 |
@@ -124,6 +126,8 @@ public struct IPCError: Error, Codable, Sendable {
 - 写入后发出 Darwin 通知 `<Bundle ID 前缀>.notify.status`。另有 `<Bundle ID 前缀>.notify.logbook`（新增日志簿事件）。
 
 App 在前台时以 1 Hz 调用 `getStatus` 与 `getTraffic` 刷新首页；进入后台停止轮询。
+
+实现（M2-10）：快照由 `TunnelRuntime` 在状态、配置、出站模式、全局策略与选择变化时写并发通知；定期维护（30 秒）只刷新流量字段、不发通知。通知经 `CFNotificationCenterGetDarwinNotifyCenter` 发出；日志簿通知在一批日志簿条目写入数据库后发出。
 
 ## 4. 隧道管理（App 侧）
 

@@ -26,6 +26,33 @@ struct SystemSupportTests {
         #expect(ResourceLimits.raiseOpenFileLimit(to: 64) == limit)
     }
 
+    @Test("The exit signal wakes waiters and times out without a signal")
+    func exitSignal() async {
+        let signaled = ExitSignal()
+        signaled.signal()
+        #expect(await signaled.wait(timeout: .seconds(5)))
+        let silent = ExitSignal()
+        #expect(await silent.wait(timeout: .milliseconds(50)) == false)
+        let later = ExitSignal()
+        Task { later.signal() }
+        #expect(await later.wait(timeout: .seconds(5)))
+    }
+
+    @Test("The memory probe reads the process footprint")
+    func memoryProbe() {
+        let reading = MemoryProbe.read()
+        #expect((reading.footprint ?? 0) > 0)
+    }
+
+    @Test("Waking bumps the network revision and reports it")
+    func wakeBumpsRevision() {
+        let reported = Locked<[Int]>([])
+        let monitor = PathMonitor { snapshot in reported.withLock { $0.append(snapshot.revision) } }
+        monitor.bumpRevision()
+        monitor.bumpRevision()
+        #expect(reported.current == [1, 2] && monitor.current.revision == 2)
+    }
+
     @Test("System DNS servers parse as addresses; a test process has no utun descriptor")
     func systemInterfaces() {
         let servers = SystemDNS.servers()

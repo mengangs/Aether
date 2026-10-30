@@ -76,15 +76,19 @@ extension AetherDatabase {
     }
 }
 
-/// 日志簿的批量写入（隧道侧，docs/11 §4.4）：条目先进缓冲，`flush` 时单事务写入。
+/// 日志簿的批量写入（隧道侧，docs/11 §4.4）：`add` 只把条目放进缓冲（可在任意线程同步调用，如数据面回调），
+/// `flush` 时单事务写入。
 ///
 /// 缓冲上限 `capacity`（256）条，超出时丢弃最旧的并计数；写入失败时丢弃这一批（日志簿不是关键数据）并计数。
-public actor LogbookWriter {
+public final class LogbookWriter: Sendable {
+    private struct State {
+        var buffer: [LogbookEntry] = []
+        var droppedEntries = 0
+    }
+
     private let database: AetherDatabase
     private let capacity: Int
-    private var buffer: [LogbookEntry] = []
-    /// 因缓冲溢出或写入失败而丢弃的条目数。
-    public private(set) var droppedEntries = 0
+    private let state = Locked(State())
 
     public init(database: AetherDatabase, capacity: Int = 256) {
         self.database = database
@@ -92,24 +96,35 @@ public actor LogbookWriter {
     }
 
     public func add(_ entry: LogbookEntry) {
-        if buffer.count >= capacity {
-            buffer.removeFirst()
-            droppedEntries += 1
+        let capacity = self.capacity
+        state.withLock { state in
+            if state.buffer.count >= capacity {
+                state.buffer.removeFirst()
+                state.droppedEntries += 1
+            }
+            state.buffer.append(entry)
         }
-        buffer.append(entry)
     }
 
-    /// 写入缓冲中的全部条目。
-    public func flush() async {
-        guard !buffer.isEmpty else { return }
-        let batch = buffer
-        buffer.removeAll()
+    /// 写入缓冲中的全部条目；返回写入的条数。
+    @discardableResult
+    public func flush() async -> Int {
+        let batch = state.withLock { state -> [LogbookEntry] in
+            defer { state.buffer.removeAll() }
+            return state.buffer
+        }
+        guard !batch.isEmpty else { return 0 }
         do {
             try await database.appendLogbook(batch)
+            return batch.count
         } catch {
-            droppedEntries += batch.count
+            state.withLock { $0.droppedEntries += batch.count }
+            return 0
         }
     }
 
-    public var pendingCount: Int { buffer.count }
+    /// 因缓冲溢出或写入失败而丢弃的条目数。
+    public var droppedEntries: Int { state.withLock { $0.droppedEntries } }
+
+    public var pendingCount: Int { state.withLock { $0.buffer.count } }
 }

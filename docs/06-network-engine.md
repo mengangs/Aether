@@ -77,6 +77,8 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 - 整个启动目标 < 3 秒（不含首次编译超大规则集）；超过 15 秒视为失败。
 - 启动不等待任何 App 消息，不发起任何必需的网络请求（外部资源缺失时使用缓存，没有缓存则该资源不可用并记录日志簿）。
 
+实现（M2-10）：与平台无关的部分在 `AetherEngine` 的 `TunnelRuntime`（actor，Linux 上可测）：第 2–5 步（读取运行包、编译、读取 `State/` 与 Fake IP 快照、启动引擎并恢复出站模式与全局策略）、启动时的数据库清理，以及返回第 6–7 步需要的网络设置与 hev 配置；配置有 error 级诊断时以首个错误的 `CFG` 码失败，`details` 附诊断摘要。`AetherTunnelSupport` 的 `PacketTunnelCore` 做第 1、6–9 步：`RLIMIT_NOFILE`、路径监控（先于第 2 步启动，使引擎从一开始就有网络快照）、`setTunnelNetworkSettings`、utun 描述符或备用桥接、hev 线程、内存压力源、每 30 秒的定期维护（刷新快照的流量字段、写出流量增量与日志簿、每 6 小时清理数据库）。任一步失败都撤销已完成的步骤并以带错误码的 `NSError` 调用 completion；启动超过 15 秒以 `IPC-004` 失败。hev 在非停止流程中退出时写日志簿并 `cancelTunnelWithError`。
+
 ### 2.3 停止
 
 `stopTunnel(with:completionHandler:)`：
@@ -87,6 +89,8 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 4. 落盘：Fake IP 快照、策略组选择、流量统计、请求历史（若开启）。
 5. 关闭 EventLoopGroup。
 6. 写状态快照（`idle`，附停止原因）、发出通知、调用 completion。
+
+实现（M2-10）：`PacketTunnelCore` 先停定期维护、内存压力源与路径监控，再停 hev（等待最多 3 秒）；`TunnelRuntime.stop` 写 Fake IP 快照、关闭引擎（UDP 关联、TCP 流、写出剩余流量增量），把流量增量与日志簿写入数据库，写 `idle` 快照并通知；最后关闭备用桥接。策略组选择在每次变化时已写入。
 
 ### 2.4 重载
 
@@ -103,10 +107,13 @@ running / reloading / reasserting ──stop──▶ stopping ──▶ idle
 
 实现（M2-07）：`Engine.reload` 在数据面 EventLoop 上依次替换路由的运行配置、DNS 的 Host 表与上游、迁移策略组选择，然后按 `system-proxy` 启停 HTTP 代理入站；正在转发的流持有自己的连接器与已建立的连接，不受替换影响。选择变化（IPC `selectPolicy` 与重载后的迁移）通过回调写入 `State/selections.json`。
 
+实现（M2-10）：`TunnelRuntime.reload(expectedRevision:)` 重新读取 `active.json` 指向的运行包；`expectedRevision` 与之不一致时返回 `IPC-012`；配置有 error 级诊断时保留旧配置、写日志簿并返回诊断（`ReloadResult.errorCount > 0`），不视为 IPC 失败；网络设置变化时经平台回调重新应用（`reasserting`），MTU 变化时重启 hev（等待旧线程最多 3 秒）。入站端口在 M2 不随配置变化。
+
 ### 2.5 休眠与唤醒
 
 - `sleep(completionHandler:)`：暂停测速与 cron 定时器，落盘统计，调用 completion。
 - `wake()`：网络修订号加一，恢复定时器，对活动策略组安排一次测速（去抖 2 秒）。
+- 实现（M2-10）：休眠时写出统计与日志簿；唤醒时修订号加一并按网络变化处理（§11）。测速与 cron 在 M3 / M6 接入。
 
 ## 3. 隧道网络设置
 

@@ -190,6 +190,8 @@ iOS 对 Packet Tunnel 扩展有硬性内存上限，超过即被系统终止。�
 
 内存数据（当前 footprint、剩余额度、各组件估算）通过 IPC 暴露给 App 的诊断页面，并在每次压力事件时写入日志簿。
 
+实现（M2-10）：warning 清空 DNS 正向缓存与反查表（保留 Fake IP 表）、请求记录环缩减到 1/4；critical 另外使新流以 `NET-041` 拒绝 10 秒，日志簿事件带该码。证书缓存、空闲出站连接与 JS 虚拟机的释放随对应组件在 M3–M6 接入。footprint 取自 `task_info(TASK_VM_INFO).phys_footprint`，剩余额度取自 `os_proc_available_memory()`（仅 iOS）。
+
 ## 7. 线程与并发
 
 | 执行上下文 | 承载内容 | 规则 |
